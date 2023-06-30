@@ -12,7 +12,7 @@ scalaVersion := "2.13.11"
 libraryDependencies += guice
 libraryDependencies += ws
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "5.1.0" % Test
-libraryDependencies ++= AppDependencies.compile
+libraryDependencies ++= AppDependencies.compile ++ AppDependencies.test
 
 playDefaultPort := 10041
 

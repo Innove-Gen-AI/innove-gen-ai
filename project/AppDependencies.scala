@@ -11,4 +11,8 @@ object AppDependencies {
     "com.google.cloud" % "google-cloud-aiplatform" % "3.13.0"
   )
 
+  val test: Seq[ModuleID] = Seq(
+    "org.scalamock" %% "scalamock" % "5.2.0" % Test
+  )
+
 }
