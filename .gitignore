@@ -7,3 +7,6 @@ target
 /.project
 /.settings
 /RUNNING_PID
+.DS_Store
+**/*.DS_Store
+/resources/reviews_*
