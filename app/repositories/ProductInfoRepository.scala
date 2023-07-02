@@ -22,6 +22,7 @@ import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 import org.mongodb.scala._
 import org.mongodb.scala.bson.codecs.Macros._
+import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
 import org.mongodb.scala.result.InsertManyResult
 import play.api.Logging
 
@@ -34,13 +35,23 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
   val codecRegistry: CodecRegistry = fromRegistries(fromProviders(classOf[ProductInfo]), DEFAULT_CODEC_REGISTRY)
   val collection: MongoCollection[ProductInfo] = database.withCodecRegistry(codecRegistry).getCollection(name)
 
-  def insert(products: Seq[ProductInfo]): Future[InsertManyResult] = {
+  val indexes: Seq[IndexModel] = Seq(
+    IndexModel(Indexes.ascending("product_id"), IndexOptions().unique(true)),
+    IndexModel(Indexes.ascending("product_name"), IndexOptions()),
+    IndexModel(Indexes.ascending("brand_id"), IndexOptions()),
+    IndexModel(Indexes.ascending("brand_name"), IndexOptions())
+  )
 
-    logger.info(s"[ProductInfoRepository] Inserting ${products.size} products..")
-    collection.insertMany(products).toFuture().map {
+  def insert(products: Seq[ProductInfo]): Future[InsertManyResult] = {
+    collection.createIndexes(indexes).toFuture().flatMap {
       result =>
-        logger.info(s"[ProductInfoRepository] Done inserting ${products.size} products.")
-        result
+        logger.info(s"[ProductInfoRepository] createIndexes result = $result")
+        logger.info(s"[ProductInfoRepository] Inserting ${products.size} products..")
+        collection.insertMany(products).toFuture().map {
+          result =>
+            logger.info(s"[ProductInfoRepository] Done inserting ${products.size} products.")
+            result
+        }
     }
   }
 
