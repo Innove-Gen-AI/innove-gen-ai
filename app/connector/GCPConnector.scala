@@ -5,11 +5,10 @@
 
 package connector
 
-import config.AppConfig
-import models.{GCPErrorResponse, SentimentAnalysisResponse}
+import models.{GCPErrorResponse, GCPPredictRequest, Instance, Parameters, SentimentAnalysisResponse}
 import play.api.Logging
 import play.api.http.Status.{INTERNAL_SERVER_ERROR, OK}
-import play.api.libs.json.Json
+import play.api.libs.json.{Json, Reads}
 import play.api.libs.ws.WSClient
 import play.api.libs.ws.ahc.AhcWSResponse
 
@@ -20,46 +19,28 @@ import scala.util.Try
 class GCPConnector @Inject()(httpClient: WSClient)
                             (implicit ec: ExecutionContext) extends Logging {
 
-  def callSentimentAnalysis(gcloudAccessToken: String): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-
-//    val client = EndpointServiceClient.create()
-//    val endpoint = "us-central1-aiplatform.googleapis.com"
-//    val name = EndpointName.of("gen-innove", "us-central1", endpoint)
-//    client.getEndpoint(name)
+  def callGCPAPI[GCPResponse](gcloudAccessToken: String,
+                              gcpPredictRequest: GCPPredictRequest,
+                              model: String = "text-bison@001")(implicit reads: Reads[GCPResponse]): Future[Either[GCPErrorResponse, GCPResponse]] = {
 
     val API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
     val PROJECT_ID = "gen-innove"
-    val MODEL_ID = "text-bison@001"
+    val MODEL_ID = model
 
     val headers = Seq(
       "Content-Type" -> "application/json",
       "Authorization" -> s"$gcloudAccessToken",
     )
 
-    val body = {
-      """{
-        |    "instances": [
-        |        {
-        |           "content": "input: Something surprised me about this movie - it was actually original. It was not the same old recycled crap that comes out of Hollywood every month. I saw this movie on video because I did not even know about it before I saw it at my local video store. If you see this movie available - rent it - you will not regret it. Classify the sentiment of the message:"
-        |        }
-        |    ],
-        |    "parameters": {
-        |        "temperature": 0.2,
-        |        "maxOutputTokens": 5,
-        |        "topP": 0.8,
-        |        "topK": 1
-        |    }
-        |}""".stripMargin
-    }
-
-    val url = s"https://${API_ENDPOINT}/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/${MODEL_ID}:predict"
+    val url = s"https://$API_ENDPOINT/v1/projects/$PROJECT_ID/locations/us-central1/publishers/google/models/$MODEL_ID:predict"
+    val body = Json.toJson(gcpPredictRequest)
 
     Try {
       httpClient.url(url).withHttpHeaders(headers: _*).post(body).map {
         case AhcWSResponse(underlying) =>
           underlying.status match {
             case OK =>
-              Json.parse(underlying.body).asOpt[SentimentAnalysisResponse] match {
+              Json.parse(underlying.body).asOpt[GCPResponse] match {
                 case Some(value) =>
                   logger.info("[GCPConnector] Received success response from API.")
                   Right(value)
@@ -78,6 +59,67 @@ class GCPConnector @Inject()(httpClient: WSClient)
         Future.successful(Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, exception.getMessage)))
       case Right(response) => response
     }
+  }
+
+  def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
+
+  def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String]): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+
+    val sentimentOutputLength = 5
+
+    val request = GCPPredictRequest(
+      Seq(
+        Instance(
+          s"inputs: [${indexedInputs(inputs)}] Classify the sentiment of the inputs: Options: ['positive', 'neutral', 'negative'] Output Notes: output sentiments as an array of strings"
+        )
+      ),
+      Parameters(
+        temperature = 0.2,
+        maxOutputTokens = inputs.length * sentimentOutputLength,
+        topP = 0.8,
+        topK = 1
+      )
+    )
+
+    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+  }
+
+  def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String]): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+
+    val request = GCPPredictRequest(
+      Seq(
+        Instance(
+          s"inputs: [${indexedInputs(inputs)}] Summarize the general sentiments, highlights, and drawbacks of the inputs: Output Notes: do not include break lines such as '\n'"
+        )
+      ),
+      Parameters(
+        temperature = 0.2,
+        maxOutputTokens = 500,
+        topP = 0.8,
+        topK = 40
+      )
+    )
+
+    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+  }
+
+  def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String]): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+
+    val request = GCPPredictRequest(
+      Seq(
+        Instance(
+          s"inputs: [${indexedInputs(inputs)}] Generate some keywords or tags that are common themes of the inputs: Keywords: Output Notes: do not include break lines such as '\n', output keywords as an array of strings"
+        )
+      ),
+      Parameters(
+        temperature = 0.2,
+        maxOutputTokens = 400,
+        topP = 0.9,
+        topK = 40
+      )
+    )
+
+    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
   }
 }
 

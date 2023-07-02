@@ -18,10 +18,31 @@ class GCPController @Inject()(val controllerComponents: ControllerComponents,
                              (implicit ec: ExecutionContext) extends BaseController {
 
   def callSentimentAnalysis(): Action[AnyContent] = Action.async { implicit request: Request[AnyContent] =>
-
     request.headers.get(AUTHORIZATION) match {
       case Some(gcloudAccessToken) =>
         gcpService.callSentimentAnalysis(gcloudAccessToken).map {
+        case Left(error) => Status(error.status)(error.response)
+        case Right(response) => Ok(Json.toJson(response))
+      }
+      case None => Future.successful(Unauthorized)
+    }
+  }
+
+  def callSummariseInputs(): Action[AnyContent] = Action.async { implicit request: Request[AnyContent] =>
+    request.headers.get(AUTHORIZATION) match {
+      case Some(gcloudAccessToken) =>
+        gcpService.callSummariseInputs(gcloudAccessToken).map {
+        case Left(error) => Status(error.status)(error.response)
+        case Right(response) => Ok(Json.toJson(response))
+      }
+      case None => Future.successful(Unauthorized)
+    }
+  }
+
+  def callGetKeywords(): Action[AnyContent] = Action.async { implicit request: Request[AnyContent] =>
+    request.headers.get(AUTHORIZATION) match {
+      case Some(gcloudAccessToken) =>
+        gcpService.callGetKeywords(gcloudAccessToken).map {
         case Left(error) => Status(error.status)(error.response)
         case Right(response) => Ok(Json.toJson(response))
       }
