@@ -63,7 +63,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
 
   def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
 
-  def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String]): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val sentimentOutputLength = 5
 
@@ -73,18 +73,18 @@ class GCPConnector @Inject()(httpClient: WSClient)
           s"inputs: [${indexedInputs(inputs)}] Classify the sentiment of the inputs: Options: ['positive', 'neutral', 'negative'] Output Notes: output sentiments as an array of strings"
         )
       ),
-      Parameters(
+      parameters.getOrElse(Parameters(
         temperature = 0.2,
         maxOutputTokens = inputs.length * sentimentOutputLength,
         topP = 0.8,
         topK = 1
-      )
+      ))
     )
 
     callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
   }
 
-  def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String]): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val request = GCPPredictRequest(
       Seq(
@@ -92,18 +92,18 @@ class GCPConnector @Inject()(httpClient: WSClient)
           s"inputs: [${indexedInputs(inputs)}] Summarize the general sentiments, highlights, and drawbacks of the inputs: Output Notes: do not include break lines such as '\n'"
         )
       ),
-      Parameters(
+      parameters.getOrElse(Parameters(
         temperature = 0.2,
         maxOutputTokens = 500,
         topP = 0.8,
         topK = 40
-      )
+      ))
     )
 
     callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
   }
 
-  def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String]): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val request = GCPPredictRequest(
       Seq(
@@ -111,11 +111,33 @@ class GCPConnector @Inject()(httpClient: WSClient)
           s"inputs: [${indexedInputs(inputs)}] Generate some keywords or tags that are common themes of the inputs: Keywords: Output Notes: do not include break lines such as '\n', output keywords as an array of strings"
         )
       ),
-      Parameters(
+      parameters.getOrElse(Parameters(
         temperature = 0.2,
         maxOutputTokens = 400,
         topP = 0.9,
         topK = 40
+      ))
+    )
+
+    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+  }
+
+  def callFreeform(gcloudAccessToken: String, inputs: Seq[String], prompt: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+
+    val request = GCPPredictRequest(
+      Seq(
+        Instance(
+          s"inputs: [${indexedInputs(inputs)}] $prompt"
+
+        )
+      ),
+      parameters.getOrElse(
+        Parameters(
+          temperature = 0.2,
+          maxOutputTokens = 600,
+          topP = 0.8,
+          topK = 40
+        )
       )
     )
 
