@@ -5,6 +5,8 @@
 
 package controllers
 
+import actions.RequestBodyAction.RequestBodyActionBuilder
+import models.{GCPFreeformRequest, GCPRequest}
 import play.api.libs.json.Json
 import play.api.mvc._
 import services.GCPService
@@ -13,14 +15,13 @@ import javax.inject._
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class GCPController @Inject()(val controllerComponents: ControllerComponents,
-                              gcpService: GCPService)
-                             (implicit ec: ExecutionContext) extends BaseController {
+class GCPController @Inject()(gcpService: GCPService)
+                             (implicit val controllerComponents: ControllerComponents, ec: ExecutionContext) extends BaseController {
 
-  def callSentimentAnalysis(): Action[AnyContent] = Action.async { implicit request: Request[AnyContent] =>
+  def callSentimentAnalysis(): Action[GCPRequest] = Action.validateBodyAs[GCPRequest].async { implicit request =>
     request.headers.get(AUTHORIZATION) match {
       case Some(gcloudAccessToken) =>
-        gcpService.callSentimentAnalysis(gcloudAccessToken).map {
+        gcpService.callSentimentAnalysis(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
         case Right(response) => Ok(Json.toJson(response))
       }
@@ -28,10 +29,10 @@ class GCPController @Inject()(val controllerComponents: ControllerComponents,
     }
   }
 
-  def callSummariseInputs(): Action[AnyContent] = Action.async { implicit request: Request[AnyContent] =>
+  def callSummariseInputs(): Action[GCPRequest] = Action.validateBodyAs[GCPRequest].async { implicit request =>
     request.headers.get(AUTHORIZATION) match {
       case Some(gcloudAccessToken) =>
-        gcpService.callSummariseInputs(gcloudAccessToken).map {
+        gcpService.callSummariseInputs(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
         case Right(response) => Ok(Json.toJson(response))
       }
@@ -39,10 +40,21 @@ class GCPController @Inject()(val controllerComponents: ControllerComponents,
     }
   }
 
-  def callGetKeywords(): Action[AnyContent] = Action.async { implicit request: Request[AnyContent] =>
+  def callGetKeywords(): Action[GCPRequest] = Action.validateBodyAs[GCPRequest].async { implicit request =>
     request.headers.get(AUTHORIZATION) match {
       case Some(gcloudAccessToken) =>
-        gcpService.callGetKeywords(gcloudAccessToken).map {
+        gcpService.callGetKeywords(gcloudAccessToken, request.body).map {
+        case Left(error) => Status(error.status)(error.response)
+        case Right(response) => Ok(Json.toJson(response))
+      }
+      case None => Future.successful(Unauthorized)
+    }
+  }
+
+  def callFreeform(): Action[GCPFreeformRequest] = Action.validateBodyAs[GCPFreeformRequest].async { implicit request =>
+    request.headers.get(AUTHORIZATION) match {
+      case Some(gcloudAccessToken) =>
+        gcpService.callFreeform(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
         case Right(response) => Ok(Json.toJson(response))
       }

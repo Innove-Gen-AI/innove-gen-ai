@@ -5,8 +5,8 @@
 
 package mocks
 
-import models.{GCPErrorResponse, SentimentAnalysisResponse}
-import org.scalamock.handlers.CallHandler1
+import models.{GCPErrorResponse, GCPRequest, SentimentAnalysisResponse}
+import org.scalamock.handlers.CallHandler2
 import org.scalamock.scalatest.MockFactory
 import services.GCPService
 
@@ -16,9 +16,9 @@ trait MockGCPService extends MockFactory {
 
   protected val mockGCPService: GCPService  = mock[GCPService]
 
-  def mockCallSentimentAnalysis(response: Either[GCPErrorResponse, SentimentAnalysisResponse]): CallHandler1[String, Future[Either[GCPErrorResponse, SentimentAnalysisResponse]]] ={
-    (mockGCPService.callSentimentAnalysis(_: String))
-      .expects(*)
+  def mockCallSentimentAnalysis(request: GCPRequest, response: Either[GCPErrorResponse, SentimentAnalysisResponse]): CallHandler2[String, GCPRequest, Future[Either[GCPErrorResponse, SentimentAnalysisResponse]]] ={
+    (mockGCPService.callSentimentAnalysis(_: String, _: GCPRequest))
+      .expects(*, request)
       .returning(Future.successful(response))
   }
 }

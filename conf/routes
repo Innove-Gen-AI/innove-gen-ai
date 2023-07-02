@@ -4,6 +4,7 @@
 # ~~~~
 
 # An example controller showing a sample home page
-GET     /sentiment-analysis         controllers.GCPController.callSentimentAnalysis()
-GET     /summarise                  controllers.GCPController.callSummariseInputs()
-GET     /keywords                   controllers.GCPController.callGetKeywords()
+POST     /sentiment-analysis         controllers.GCPController.callSentimentAnalysis()
+POST     /summarise                  controllers.GCPController.callSummariseInputs()
+POST     /keywords                   controllers.GCPController.callGetKeywords()
+POST     /freeform                   controllers.GCPController.callGetKeywords()
