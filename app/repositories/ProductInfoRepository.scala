@@ -43,4 +43,6 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
         result
     }
   }
+
+  def count: Future[Long] = collection.countDocuments().toFuture()
 }

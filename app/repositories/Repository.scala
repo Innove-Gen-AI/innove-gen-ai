@@ -1,6 +1,5 @@
 package repositories
 
-import models.dataset.ProductInfo
 import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala._
 
