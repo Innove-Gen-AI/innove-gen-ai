@@ -35,6 +35,7 @@ class DatasetIngestionService @Inject()(productInfoRepository: ProductInfoReposi
 
           productInfoRepository.insert(products).map(_.wasAcknowledged())
         } else {
+          logger.info("[DatasetIngestionService][ingestProductInfo] Already has data. Continuing.")
           Future.successful(true)
         }
       }
@@ -52,6 +53,7 @@ class DatasetIngestionService @Inject()(productInfoRepository: ProductInfoReposi
 
           productReviewsRepository.insert(reviews).map(_.wasAcknowledged())
         } else {
+          logger.info("[DatasetIngestionService][ingestProductReviews] Already has data. Continuing.")
           Future.successful(true)
         }
       }
@@ -59,7 +61,7 @@ class DatasetIngestionService @Inject()(productInfoRepository: ProductInfoReposi
 
     ingestProductInfo.flatMap { _ =>
       ingestProductReviews.map { result =>
-        logger.info(s"[DatasetIngestionService] Done.")
+        logger.info(s"[DatasetIngestionService] Finished dataset ingestion.")
         result
       }
     }
