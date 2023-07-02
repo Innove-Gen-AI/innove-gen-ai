@@ -7,4 +7,4 @@
 POST     /sentiment-analysis         controllers.GCPController.callSentimentAnalysis()
 POST     /summarise                  controllers.GCPController.callSummariseInputs()
 POST     /keywords                   controllers.GCPController.callGetKeywords()
-POST     /freeform                   controllers.GCPController.callGetKeywords()
+POST     /freeform                   controllers.GCPController.callFreeform()
