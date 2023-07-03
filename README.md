@@ -9,8 +9,6 @@ Open this project via intellij or using intellij's VCS (`git clone https://githu
 - terminal - `sbt start`
 - sbt shell - `start`
 
-If you want to include the full dataset example you can place the `reviews_0_250.csv` in the resources folder & change dataset limit to `limit = false` in config.
-
 ## Dependencies
 
 ### Mongo
