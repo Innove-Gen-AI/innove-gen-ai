@@ -18,11 +18,10 @@ package models
 
 import play.api.libs.json.{Json, Reads, Writes}
 
-case class GCPFreeformRequest(product_id: String,
-                              parameters: Option[Parameters] = None,
-                              prompt: String)
+case class GCPRequest(product_id: String,
+                      parameters: Option[Parameters] = None)
 
-object GCPFreeformRequest {
-  implicit val reads: Reads[GCPFreeformRequest] = Json.using[Json.WithDefaultValues].reads[GCPFreeformRequest]
-  implicit val writes: Writes[GCPFreeformRequest] = Json.writes[GCPFreeformRequest]
+object GCPRequest {
+  implicit val reads: Reads[GCPRequest] = Json.using[Json.WithDefaultValues].reads[GCPRequest]
+  implicit val writes: Writes[GCPRequest] = Json.writes[GCPRequest]
 }

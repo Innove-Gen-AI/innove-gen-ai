@@ -17,9 +17,7 @@ class GCPControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting 
   "GCPController GET" should {
     "call the service with a sentiment analysis response" in {
 
-      val request = GCPRequest(inputs = Seq(
-        "It was great"
-      ))
+      val request = GCPRequest("product")
 
       mockCallSentimentAnalysis(
         request,
@@ -35,7 +33,7 @@ class GCPControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting 
       val home = controller.callSentimentAnalysis().apply(fakeRequest(request).withHeaders(AUTHORIZATION -> "Bearer token"))
 
       status(home) mustBe OK
-      contentAsString(home) mustBe """{"predictions":[{"content":"positive"}]}"""
+      contentAsString(home) mustBe """{"content":"positive"}"""
     }
   }
 }
