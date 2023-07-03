@@ -19,9 +19,11 @@ import scala.util.Try
 class GCPConnector @Inject()(httpClient: WSClient)
                             (implicit ec: ExecutionContext) extends Logging {
 
-  def callGCPAPI[GCPResponse](gcloudAccessToken: String,
+  private def sanitiseOutput(output: String): String = output.replaceAll("\n", "").replaceAll("\\*", "")
+
+  def callGCPAPI(gcloudAccessToken: String,
                               gcpPredictRequest: GCPPredictRequest,
-                              model: String = "text-bison@001")(implicit reads: Reads[GCPResponse]): Future[Either[GCPErrorResponse, GCPResponse]] = {
+                              model: String = "text-bison@001"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
     val PROJECT_ID = "gen-innove"
@@ -35,15 +37,19 @@ class GCPConnector @Inject()(httpClient: WSClient)
     val url = s"https://$API_ENDPOINT/v1/projects/$PROJECT_ID/locations/us-central1/publishers/google/models/$MODEL_ID:predict"
     val body = Json.toJson(gcpPredictRequest)
 
+    val bytes: Long = body.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name).length
+
+    logger.info(s"[GCPConnector][callGCPAPI] Request Content-length $bytes")
+
     Try {
       httpClient.url(url).withHttpHeaders(headers: _*).post(body).map {
         case AhcWSResponse(underlying) =>
           underlying.status match {
             case OK =>
-              Json.parse(underlying.body).asOpt[GCPResponse] match {
+              Json.parse(underlying.body).asOpt[SentimentAnalysisResponse] match {
                 case Some(value) =>
                   logger.info("[GCPConnector] Received success response from API.")
-                  Right(value)
+                  Right(value.copy(predictions = value.predictions.map(prediction => prediction.copy(content = sanitiseOutput(prediction.content)))))
                 case None =>
                   logger.error(s"[GCPConnector] Error. Could not map response: ${underlying.body}")
                   Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, s"Error. Could not map response: ${underlying.body}"))
@@ -75,13 +81,13 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ),
       parameters.getOrElse(Parameters(
         temperature = 0.2,
-        maxOutputTokens = inputs.length * sentimentOutputLength,
+        maxOutputTokens = 1 + inputs.length * sentimentOutputLength,
         topP = 0.8,
         topK = 1
       ))
     )
 
-    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request)
   }
 
   def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
@@ -94,13 +100,13 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ),
       parameters.getOrElse(Parameters(
         temperature = 0.2,
-        maxOutputTokens = 500,
+        maxOutputTokens = 700,
         topP = 0.8,
         topK = 40
       ))
     )
 
-    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request)
   }
 
   def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
@@ -119,7 +125,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request)
   }
 
   def callFreeform(gcloudAccessToken: String, inputs: Seq[String], prompt: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
@@ -141,7 +147,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
       )
     )
 
-    callGCPAPI[SentimentAnalysisResponse](gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request)
   }
 }
 

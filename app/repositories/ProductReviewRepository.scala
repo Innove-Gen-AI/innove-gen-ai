@@ -22,6 +22,8 @@ import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 import org.mongodb.scala._
 import org.mongodb.scala.bson.codecs.Macros._
+import org.mongodb.scala.bson.conversions.Bson
+import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
 import org.mongodb.scala.result.InsertManyResult
 import play.api.Logging
@@ -42,6 +44,12 @@ class ProductReviewRepository @Inject ()(implicit ec: ExecutionContext) extends 
     IndexModel(Indexes.ascending("brand_name"), IndexOptions()),
     IndexModel(Indexes.ascending("submission_time"), IndexOptions())
   )
+
+  private def lookupQuery(productId: String): Bson = equal("product_id", productId)
+
+  def getProductReviews(productId: String): Future[Seq[ProductReview]] = collection.find[ProductReview](lookupQuery(productId)).toFuture()
+
+  def countProductReviews(productId: String): Future[Long] = collection.countDocuments(lookupQuery(productId)).toFuture()
 
   def insert(reviews: Seq[ProductReview]): Future[InsertManyResult] = {
     collection.createIndexes(indexes).toFuture().flatMap{

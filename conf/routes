@@ -3,8 +3,12 @@
 # https://www.playframework.com/documentation/latest/ScalaRouting
 # ~~~~
 
-# An example controller showing a sample home page
+# GCP APIs
 POST     /sentiment-analysis         controllers.GCPController.callSentimentAnalysis()
 POST     /summarise                  controllers.GCPController.callSummariseInputs()
 POST     /keywords                   controllers.GCPController.callGetKeywords()
 POST     /freeform                   controllers.GCPController.callFreeform()
+
+# Products
+GET      /products                   controllers.ProductsController.getProducts
+GET      /product/:productId         controllers.ProductsController.getProduct(productId: String)

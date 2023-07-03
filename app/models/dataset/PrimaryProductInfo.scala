@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-package models
+package models.dataset
 
-import play.api.libs.json.{Json, Reads, Writes}
+import play.api.libs.json.{Json, OFormat}
 
-case class GCPFreeformRequest(product_id: String,
-                              parameters: Option[Parameters] = None,
-                              prompt: String)
+case class PrimaryProductInfo(product_id: String,
+                              product_name: String,
+                              brand_name: String)
 
-object GCPFreeformRequest {
-  implicit val reads: Reads[GCPFreeformRequest] = Json.using[Json.WithDefaultValues].reads[GCPFreeformRequest]
-  implicit val writes: Writes[GCPFreeformRequest] = Json.writes[GCPFreeformRequest]
+object PrimaryProductInfo {
+  implicit val formats: OFormat[PrimaryProductInfo] = Json.format[PrimaryProductInfo]
 }

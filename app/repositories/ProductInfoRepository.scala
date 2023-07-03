@@ -16,15 +16,19 @@
 
 package repositories
 
-import models.dataset.ProductInfo
+import models.dataset.{PrimaryProductInfo, ProductInfo}
 import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
 import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 import org.mongodb.scala._
 import org.mongodb.scala.bson.codecs.Macros._
+import org.mongodb.scala.bson.conversions.Bson
+import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.Projections.include
 import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
 import org.mongodb.scala.result.InsertManyResult
 import play.api.Logging
+import play.api.libs.json.Json
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -41,6 +45,20 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
     IndexModel(Indexes.ascending("brand_id"), IndexOptions()),
     IndexModel(Indexes.ascending("brand_name"), IndexOptions())
   )
+
+  private def lookupQuery(productId: String): Bson = equal("product_id", productId)
+
+  def getProduct(productId: String): Future[Option[ProductInfo]] = {
+    collection.find[ProductInfo](lookupQuery(productId)).headOption()
+  }
+
+  def getProducts: Future[Seq[PrimaryProductInfo]] = {
+    collection.find[Document]().projection(include("product_id", "product_name", "brand_name")).toFuture().map { documents =>
+      documents.map { document =>
+        Json.parse(document.toJson()).as[PrimaryProductInfo]
+      }
+    }
+  }
 
   def insert(products: Seq[ProductInfo]): Future[InsertManyResult] = {
     collection.createIndexes(indexes).toFuture().flatMap {
