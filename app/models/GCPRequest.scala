@@ -19,7 +19,8 @@ package models
 import play.api.libs.json.{Json, Reads, Writes}
 
 case class GCPRequest(product_id: String,
-                      parameters: Option[Parameters] = None)
+                      parameters: Option[Parameters] = None,
+                      datasetSize: Option[Int] = None)
 
 object GCPRequest {
   implicit val reads: Reads[GCPRequest] = Json.using[Json.WithDefaultValues].reads[GCPRequest]
