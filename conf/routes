@@ -12,3 +12,4 @@ POST     /freeform                   controllers.GCPController.callFreeform()
 # Products
 GET      /products                   controllers.ProductsController.getProducts
 GET      /product/:productId         controllers.ProductsController.getProduct(productId: String)
+

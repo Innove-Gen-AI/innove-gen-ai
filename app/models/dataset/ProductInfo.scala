@@ -37,7 +37,8 @@ case class ProductInfo(product_id: String,
                        highlights: String,
                        primary_category: String,
                        secondary_category: Option[String],
-                       tertiary_category: Option[String])
+                       tertiary_category: Option[String],
+                       image: Option[String])
 
 object ProductInfo {
   implicit val formats: OFormat[ProductInfo] = Json.format[ProductInfo]

@@ -6,7 +6,7 @@
 package services
 
 import config.AppConfig
-import models.dataset.{ProductInfo, ProductReview}
+import models.dataset.{ProductImage, ProductInfo, ProductReview}
 import play.api.Logging
 import repositories.{ProductInfoRepository, ProductReviewRepository}
 
@@ -59,10 +59,37 @@ class DatasetIngestionService @Inject()(productInfoRepository: ProductInfoReposi
       }
     }
 
+    def ingestProductImages: Future[Boolean] = {
+      productInfoRepository.getProductsWithoutImage.flatMap { productsWithoutImage =>
+        if(productsWithoutImage.nonEmpty){
+
+          logger.info("[DatasetIngestionService][ingestProductImages] About to start.")
+
+          val images: List[ProductImage] = CSVReader[ProductImage].readCSVFromFileName(appConfig.imagesFilepath, delimiter = '|').filter(_.toOption.isDefined).map(_.get)
+
+          logger.info("[DatasetIngestionService][ingestProductImages] Inserting data from dataset")
+
+          val toUpdate = images.filter(image => productsWithoutImage.map(_.product_id).contains(image.product_id))
+          logger.info(s"[DatasetIngestionService][ingestProductImages] Dataset size - ${toUpdate.size}")
+
+          Future.sequence(toUpdate.map { productImage =>
+            productInfoRepository.updateWithImage(productImage = productImage)
+          }).map(_.flatten).map { result =>
+            result.size == productsWithoutImage.size
+          }
+        } else {
+          logger.info("[DatasetIngestionService][ingestProductImages] Already has data. Continuing.")
+          Future.successful(true)
+        }
+      }
+    }
+
     ingestProductInfo.flatMap { _ =>
-      ingestProductReviews.map { result =>
-        logger.info(s"[DatasetIngestionService] Finished dataset ingestion.")
-        result
+      ingestProductReviews.flatMap { _ =>
+        ingestProductImages.map { result =>
+          logger.info(s"[DatasetIngestionService] Finished dataset ingestion.")
+          result
+        }
       }
     }
   }

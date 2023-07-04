@@ -18,11 +18,9 @@ package models.dataset
 
 import play.api.libs.json.{Json, OFormat}
 
-case class PrimaryProductInfo(product_id: String,
-                              product_name: String,
-                              brand_name: String,
-                              image: Option[String])
+case class ProductImage(product_id: String,
+                        image: String)
 
-object PrimaryProductInfo {
-  implicit val formats: OFormat[PrimaryProductInfo] = Json.format[PrimaryProductInfo]
+object ProductImage {
+  implicit val formats: OFormat[ProductImage] = Json.format[ProductImage]
 }
