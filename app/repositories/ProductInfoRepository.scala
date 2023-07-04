@@ -17,8 +17,7 @@
 package repositories
 
 import com.mongodb.client.model.ReturnDocument
-import models.dataset.{PrimaryProductInfo, ProductInfo}
-import models.search.ProductImage
+import models.dataset.{PrimaryProductInfo, ProductImage, ProductInfo}
 import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
 import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
@@ -57,7 +56,7 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
   }
 
   def getProducts: Future[Seq[PrimaryProductInfo]] = {
-    collection.find[Document]().projection(include("product_id", "product_name", "brand_name")).toFuture().map { documents =>
+    collection.find[Document]().projection(include("product_id", "product_name", "brand_name", "image")).toFuture().map { documents =>
       documents.map { document =>
         Json.parse(document.toJson()).as[PrimaryProductInfo]
       }
@@ -68,7 +67,7 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
 
     def missingLookupQuery: Bson = equal("image", null)
 
-    collection.find[Document](missingLookupQuery).projection(include("product_id", "product_name", "brand_name")).toFuture().map { documents =>
+    collection.find[Document](missingLookupQuery).projection(include("product_id", "product_name", "brand_name", "image")).toFuture().map { documents =>
       documents.map { document =>
         Json.parse(document.toJson()).as[PrimaryProductInfo]
       }

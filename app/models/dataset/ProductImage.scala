@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-package models.search
+package models.dataset
 
 import play.api.libs.json.{Json, OFormat}
 
-case class ProductImageRequest(cx: String, api: String)
+case class ProductImage(product_id: String,
+                        image: String)
 
-object ProductImageRequest {
-  implicit val formats: OFormat[ProductImageRequest] = Json.format[ProductImageRequest]
+object ProductImage {
+  implicit val formats: OFormat[ProductImage] = Json.format[ProductImage]
 }

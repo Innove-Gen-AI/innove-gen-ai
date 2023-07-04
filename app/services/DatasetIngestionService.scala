@@ -6,8 +6,7 @@
 package services
 
 import config.AppConfig
-import models.dataset.{ProductInfo, ProductReview}
-import models.search.ProductImage
+import models.dataset.{ProductImage, ProductInfo, ProductReview}
 import play.api.Logging
 import repositories.{ProductInfoRepository, ProductReviewRepository}
 
