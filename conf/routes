@@ -12,3 +12,5 @@ POST     /freeform                   controllers.GCPController.callFreeform()
 # Products
 GET      /products                   controllers.ProductsController.getProducts
 GET      /product/:productId         controllers.ProductsController.getProduct(productId: String)
+POST     /product/images/:batch      controllers.ProductImageSearchController.getProductImages(batch: Int)
+GET      /product/images/csv         controllers.ProductImageSearchController.getProductImagesCsv

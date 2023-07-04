@@ -16,16 +16,19 @@
 
 package repositories
 
+import com.mongodb.client.model.ReturnDocument
 import models.dataset.{PrimaryProductInfo, ProductInfo}
+import models.search.ProductImage
 import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
 import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 import org.mongodb.scala._
+import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.codecs.Macros._
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Projections.include
-import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
+import org.mongodb.scala.model.{FindOneAndUpdateOptions, IndexModel, IndexOptions, Indexes}
 import org.mongodb.scala.result.InsertManyResult
 import play.api.Logging
 import play.api.libs.json.Json
@@ -43,7 +46,8 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
     IndexModel(Indexes.ascending("product_id"), IndexOptions().unique(true)),
     IndexModel(Indexes.ascending("product_name"), IndexOptions()),
     IndexModel(Indexes.ascending("brand_id"), IndexOptions()),
-    IndexModel(Indexes.ascending("brand_name"), IndexOptions())
+    IndexModel(Indexes.ascending("brand_name"), IndexOptions()),
+    IndexModel(Indexes.ascending("image"), IndexOptions().sparse(true))
   )
 
   private def lookupQuery(productId: String): Bson = equal("product_id", productId)
@@ -58,6 +62,25 @@ class ProductInfoRepository @Inject ()(implicit ec: ExecutionContext) extends Re
         Json.parse(document.toJson()).as[PrimaryProductInfo]
       }
     }
+  }
+
+  def getProductsWithoutImage: Future[Seq[PrimaryProductInfo]] = {
+
+    def missingLookupQuery: Bson = equal("image", null)
+
+    collection.find[Document](missingLookupQuery).projection(include("product_id", "product_name", "brand_name")).toFuture().map { documents =>
+      documents.map { document =>
+        Json.parse(document.toJson()).as[PrimaryProductInfo]
+      }
+    }
+  }
+
+  def updateWithImage(productImage: ProductImage): Future[Option[ProductInfo]] = {
+
+    val options = FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)
+    def set: BsonDocument = BsonDocument("$set" -> BsonDocument("image" -> productImage.image))
+
+    collection.findOneAndUpdate(lookupQuery(productImage.product_id), set, options).toFutureOption()
   }
 
   def insert(products: Seq[ProductInfo]): Future[InsertManyResult] = {
