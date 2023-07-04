@@ -17,7 +17,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
                            productService: ProductService)
                           (implicit ec: ExecutionContext) extends Logging {
 
-  def datasetInputs(productId: String, datasetSize: Int = 100): Future[Seq[String]] = {
+  private def datasetInputs(productId: String, datasetSize: Int): Future[Seq[String]] = {
     productService.getProductReviews(productId).map {
       reviews =>
         reviews.map(_.review_text).take(datasetSize)
@@ -25,28 +25,28 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
   }
 
   def callSentimentAnalysis(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    datasetInputs(request.product_id, 30).flatMap {
+    datasetInputs(request.product_id, request.datasetSize.getOrElse(30)).flatMap {
       inputs =>
         gcpConnector.callSentimentAnalysis(gcloudAccessToken, inputs, request.parameters)
     }
   }
 
   def callGetKeywords(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    datasetInputs(request.product_id).flatMap {
+    datasetInputs(request.product_id, request.datasetSize.getOrElse(50)).flatMap {
       inputs =>
         gcpConnector.callGetKeywords(gcloudAccessToken, inputs, request.parameters)
     }
   }
 
   def callSummariseInputs(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    datasetInputs(request.product_id).flatMap {
+    datasetInputs(request.product_id, request.datasetSize.getOrElse(100)).flatMap {
       inputs =>
         gcpConnector.callSummariseInputs(gcloudAccessToken, inputs, request.parameters)
     }
   }
 
   def callFreeform(gcloudAccessToken: String, request: GCPFreeformRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    datasetInputs(request.product_id).flatMap {
+    datasetInputs(request.product_id, request.datasetSize.getOrElse(100)).flatMap {
       inputs =>
         gcpConnector.callFreeform(gcloudAccessToken, inputs, request.prompt, request.parameters)
     }
