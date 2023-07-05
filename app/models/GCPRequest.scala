@@ -20,7 +20,8 @@ import play.api.libs.json.{Json, Reads, Writes}
 
 case class GCPRequest(product_id: String,
                       parameters: Option[Parameters] = None,
-                      datasetSize: Option[Int] = None)
+                      datasetSize: Option[Int] = None,
+                      filters: Seq[String] = Seq.empty)
 
 object GCPRequest {
   implicit val reads: Reads[GCPRequest] = Json.using[Json.WithDefaultValues].reads[GCPRequest]

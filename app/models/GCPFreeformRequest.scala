@@ -21,6 +21,7 @@ import play.api.libs.json.{Json, Reads, Writes}
 case class GCPFreeformRequest(product_id: String,
                               parameters: Option[Parameters] = None,
                               datasetSize: Option[Int] = None,
+                              filters: Seq[String] = Seq.empty,
                               prompt: String)
 
 object GCPFreeformRequest {

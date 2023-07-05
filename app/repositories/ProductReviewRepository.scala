@@ -21,10 +21,11 @@ import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistr
 import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 import org.mongodb.scala._
+import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.bson.codecs.Macros._
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
+import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes}
 import org.mongodb.scala.result.InsertManyResult
 import play.api.Logging
 
@@ -39,15 +40,35 @@ class ProductReviewRepository @Inject ()(implicit ec: ExecutionContext) extends 
 
   val indexes: Seq[IndexModel] = Seq(
     IndexModel(Indexes.ascending("product_id"), IndexOptions()),
-    IndexModel(Indexes.ascending("product_name"), IndexOptions()),
-    IndexModel(Indexes.ascending("author_id"), IndexOptions()),
-    IndexModel(Indexes.ascending("brand_name"), IndexOptions()),
-    IndexModel(Indexes.ascending("submission_time"), IndexOptions())
+    IndexModel(Indexes.ascending("submission_time"), IndexOptions()),
+    IndexModel(Indexes.ascending("rating"), IndexOptions())
   )
 
   private def lookupQuery(productId: String): Bson = equal("product_id", productId)
 
-  def getProductReviews(productId: String): Future[Seq[ProductReview]] = collection.find[ProductReview](lookupQuery(productId)).toFuture()
+  private def negativeQuery: Bson = BsonDocument("rating" -> BsonDocument("$lte" -> 2))
+  private def positiveQuery: Bson = BsonDocument("rating" -> BsonDocument("$gte" -> 4))
+  private def recentQuery: Bson = BsonDocument("submission_time" -> -1)
+
+  def getProductReviews(productId: String, positiveFilter: Option[Boolean], recentFilter: Boolean): Future[Seq[ProductReview]] = {
+
+    val positiveOptionQuery: Option[Bson] = positiveFilter match {
+      case Some(true) => Some(positiveQuery)
+      case Some(false) => Some(negativeQuery)
+      case None => None
+    }
+
+    val recentOptionQuery: Bson = if (recentFilter) recentQuery else BsonDocument()
+
+    val queryContents: Seq[Bson] = Seq(
+      Some(lookupQuery(productId)),
+      positiveOptionQuery
+    ).flatten
+
+    val query: Bson = Filters.and(queryContents: _*)
+
+    collection.find[ProductReview](query).sort(recentOptionQuery).toFuture()
+  }
 
   def countProductReviews(productId: String): Future[Long] = collection.countDocuments(lookupQuery(productId)).toFuture()
 
