@@ -70,6 +70,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
   def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
 
   def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+    logger.info("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
 
     val sentimentOutputLength = 5
 
@@ -91,6 +92,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
   }
 
   def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+    logger.info("[GCPConnector][callSummariseInputs] Calling summarise API")
 
     val request = GCPPredictRequest(
       Seq(
@@ -110,6 +112,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
   }
 
   def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+    logger.info("[GCPConnector][callGetKeywords] Calling keywords API")
 
     val request = GCPPredictRequest(
       Seq(
@@ -129,6 +132,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
   }
 
   def callFreeform(gcloudAccessToken: String, inputs: Seq[String], prompt: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+    logger.info(s"[GCPConnector][callFreeform] Calling free form API. Prompt: $prompt")
 
     val request = GCPPredictRequest(
       Seq(
