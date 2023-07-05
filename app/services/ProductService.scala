@@ -37,12 +37,30 @@ class ProductService @Inject()(productInfoRepository: ProductInfoRepository,
     }
   }
 
-  def getProductReviews(productId: String): Future[Seq[ProductReview]] = {
+  def getProductReviews(productId: String, filters: Seq[String]): Future[Seq[ProductReview]] = {
+
+    val positive = filters.contains("positive")
+    val negative = filters.contains("negative")
+
+    val positiveFilter: Option[Boolean] = {
+      (positive, negative) match {
+        case (true, _) => Some(true)
+        case (_, true) => Some(false)
+        case _ => None
+      }
+    }
+
+    val recentFilter: Boolean = filters.contains("recent")
+
     productInfoRepository.getProduct(productId).flatMap {
       case Some(product) =>
         logger.info(s"[ProductService][getProductReviews] Product found: $productId")
-        productReviewsRepository.getProductReviews(product.product_id).map {
+        productReviewsRepository.getProductReviews(product.product_id, positiveFilter, recentFilter).map {
           reviews =>
+
+            logger.info(s"[ProductService][getProductReviews] ${reviews.take(5).map(_.rating)}")
+            logger.info(s"[ProductService][getProductReviews] ${reviews.take(5).map(_.submission_time)}")
+
             logger.info(s"[ProductService][getProductReviews] Reviews found for product id: $productId, ${reviews.length}")
             reviews
         }
