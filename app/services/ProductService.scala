@@ -57,10 +57,6 @@ class ProductService @Inject()(productInfoRepository: ProductInfoRepository,
         logger.info(s"[ProductService][getProductReviews] Product found: $productId")
         productReviewsRepository.getProductReviews(product.product_id, positiveFilter, recentFilter).map {
           reviews =>
-
-            logger.info(s"[ProductService][getProductReviews] ${reviews.take(5).map(_.rating)}")
-            logger.info(s"[ProductService][getProductReviews] ${reviews.take(5).map(_.submission_time)}")
-
             logger.info(s"[ProductService][getProductReviews] Reviews found for product id: $productId, ${reviews.length}")
             reviews
         }
