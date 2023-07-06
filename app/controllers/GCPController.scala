@@ -6,7 +6,7 @@
 package controllers
 
 import actions.RequestBodyAction.RequestBodyActionBuilder
-import models.{GCPFreeformRequest, GCPRequest, SentimentAnalysisResponse}
+import models.{GCPFreeformRequest, GCPRequest, PredictionOutput, SentimentAnalysisResponse}
 import play.api.libs.json.Json
 import play.api.mvc._
 import services.GCPService
@@ -18,11 +18,10 @@ import scala.concurrent.{ExecutionContext, Future}
 class GCPController @Inject()(gcpService: GCPService)
                              (implicit val controllerComponents: ControllerComponents, ec: ExecutionContext) extends BaseController {
 
-  private def toPredictionResponse(sentimentAnalysisResponse: SentimentAnalysisResponse): Result = {
-    if(sentimentAnalysisResponse.predictions.nonEmpty){
-      Ok(Json.toJson(sentimentAnalysisResponse.predictions.head))
-    } else {
-      NoContent
+  private def toResult(predictionOutput: Option[PredictionOutput]): Result = {
+    predictionOutput match {
+      case Some(predictionOutput) => Ok(Json.toJson(predictionOutput))
+      case None => NoContent
     }
   }
 
@@ -31,7 +30,7 @@ class GCPController @Inject()(gcpService: GCPService)
       case Some(gcloudAccessToken) =>
         gcpService.callSentimentAnalysis(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
-        case Right(response) => toPredictionResponse(response)
+        case Right(response) => toResult(response)
       }
       case None => Future.successful(Unauthorized)
     }
@@ -42,7 +41,7 @@ class GCPController @Inject()(gcpService: GCPService)
       case Some(gcloudAccessToken) =>
         gcpService.callSummariseInputs(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
-        case Right(response) => toPredictionResponse(response)
+        case Right(response) => toResult(response)
       }
       case None => Future.successful(Unauthorized)
     }
@@ -53,7 +52,7 @@ class GCPController @Inject()(gcpService: GCPService)
       case Some(gcloudAccessToken) =>
         gcpService.callGetKeywords(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
-        case Right(response) => toPredictionResponse(response)
+        case Right(response) => toResult(response)
       }
       case None => Future.successful(Unauthorized)
     }
@@ -64,7 +63,7 @@ class GCPController @Inject()(gcpService: GCPService)
       case Some(gcloudAccessToken) =>
         gcpService.callFreeform(gcloudAccessToken, request.body).map {
         case Left(error) => Status(error.status)(error.response)
-        case Right(response) => toPredictionResponse(response)
+        case Right(response) => toResult(response)
       }
       case None => Future.successful(Unauthorized)
     }
