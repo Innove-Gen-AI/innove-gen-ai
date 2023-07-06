@@ -58,7 +58,11 @@ class ProductService @Inject()(productInfoRepository: ProductInfoRepository,
         productReviewsRepository.getProductReviews(product.product_id, positiveFilter, recentFilter).map {
           reviews =>
             logger.info(s"[ProductService][getProductReviews] Reviews found for product id: $productId, ${reviews.length}")
-            reviews
+            if(recentFilter){
+              reviews
+            } else {
+              scala.util.Random.shuffle(reviews)
+            }
         }
       case None =>
         logger.info(s"[ProductService][getProductReviews] Product not found: $productId")
