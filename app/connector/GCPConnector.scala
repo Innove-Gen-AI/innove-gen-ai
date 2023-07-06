@@ -122,7 +122,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ),
       parameters.getOrElse(Parameters(
         temperature = 0.2,
-        maxOutputTokens = 400,
+        maxOutputTokens = 50,
         topP = 0.9,
         topK = 40
       ))
@@ -160,7 +160,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
     val request = GCPPredictRequest(
       Seq(
         Instance(
-          s"inputs: [${indexedInputs(inputs)}] Generate a catchy review title based on the sentiment of the inputs."
+          s"inputs: [${indexedInputs(inputs)}] Generate a catchy review title based on the sentiment of the inputs. In 8 word or less"
 
         )
       ),
