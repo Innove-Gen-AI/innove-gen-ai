@@ -54,7 +54,7 @@ class ProductService @Inject()(productInfoRepository: ProductInfoRepository,
 
     productInfoRepository.getProduct(productId).flatMap {
       case Some(product) =>
-        logger.info(s"[ProductService][getProductReviews] Product found: $productId")
+        logger.info(s"[ProductService][getProductReviews] Product found: $productId, searching for reviews with filters: $filters")
         productReviewsRepository.getProductReviews(product.product_id, positiveFilter, recentFilter).map {
           reviews =>
             logger.info(s"[ProductService][getProductReviews] Reviews found for product id: $productId, ${reviews.length}")
