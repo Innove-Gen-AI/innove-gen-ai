@@ -153,5 +153,31 @@ class GCPConnector @Inject()(httpClient: WSClient)
 
     callGCPAPI(gcloudAccessToken, request)
   }
+
+  def callGenerateTitle(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[String] = {
+    logger.info(s"[GCPConnector][callFreeform] Calling title generation API.")
+
+    val request = GCPPredictRequest(
+      Seq(
+        Instance(
+          s"inputs: [${indexedInputs(inputs)}] Generate a catchy review title based on the sentiment of the inputs."
+
+        )
+      ),
+      parameters.getOrElse(
+        Parameters(
+          temperature = 0.2,
+          maxOutputTokens = 20,
+          topP = 0.95,
+          topK = 40
+        )
+      )
+    )
+
+    callGCPAPI(gcloudAccessToken, request).map {
+      case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty => predictions.head.content
+      case _ => "Overall sentiment"
+    }
+  }
 }
 
