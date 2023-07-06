@@ -117,12 +117,12 @@ class GCPConnector @Inject()(httpClient: WSClient)
     val request = GCPPredictRequest(
       Seq(
         Instance(
-          s"inputs: [${indexedInputs(inputs)}] Generate 15 (or less) keywords or tags that are common themes of the inputs: Keywords: Output Notes: do not include break lines such as '\n', output keywords as an array of strings"
+          s"inputs: [${indexedInputs(inputs)}] Generate 9 meaningful keywords or tags that are common themes of the inputs: Keywords: Output Notes: do not include break lines such as '\n', output keywords as an array of strings"
         )
       ),
       parameters.getOrElse(Parameters(
         temperature = 0.2,
-        maxOutputTokens = 90,
+        maxOutputTokens = 75,
         topP = 0.9,
         topK = 40
       ))
