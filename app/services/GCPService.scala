@@ -27,7 +27,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
   def callSentimentAnalysis(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
     datasetInputs(request.product_id, request.datasetSize.getOrElse(30), request.filters).flatMap {
       inputs =>
-        gcpConnector.callSentimentAnalysis(gcloudAccessToken, inputs, request.parameters).map{
+        gcpConnector.callSentimentAnalysis(gcloudAccessToken, inputs, request.projectId, request.parameters).map {
           case Left(error) => Left(error)
           case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty =>
             Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes)))
@@ -39,7 +39,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
   def callGetKeywords(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
     datasetInputs(request.product_id, request.datasetSize.getOrElse(50), request.filters).flatMap {
       inputs =>
-        gcpConnector.callGetKeywords(gcloudAccessToken, inputs, request.parameters).map{
+        gcpConnector.callGetKeywords(gcloudAccessToken, inputs, request.projectId, request.parameters).map{
           case Left(error) => Left(error)
           case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty =>
             Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes)))
@@ -51,10 +51,10 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
   def callSummariseInputs(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
     datasetInputs(request.product_id, request.datasetSize.getOrElse(100), request.filters).flatMap {
       inputs =>
-        gcpConnector.callSummariseInputs(gcloudAccessToken, inputs, request.parameters).flatMap {
+        gcpConnector.callSummariseInputs(gcloudAccessToken, inputs, request.projectId, request.parameters).flatMap {
           case Left(error) => Future.successful(Left(error))
           case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty =>
-            gcpConnector.callGenerateTitle(gcloudAccessToken, inputs).map { title =>
+            gcpConnector.callGenerateTitle(gcloudAccessToken, inputs, request.projectId).map { title =>
               Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title)))
             }
           case Right(_) =>  Future.successful(Right(None))
@@ -65,10 +65,10 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
   def callFreeform(gcloudAccessToken: String, request: GCPFreeformRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
     datasetInputs(request.product_id, request.datasetSize.getOrElse(100), request.filters).flatMap {
       inputs =>
-        gcpConnector.callFreeform(gcloudAccessToken, inputs, request.prompt, request.parameters).flatMap {
+        gcpConnector.callFreeform(gcloudAccessToken, inputs, request.prompt, request.projectId, request.parameters).flatMap {
           case Left(error) => Future.successful(Left(error))
           case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty =>
-            gcpConnector.callGenerateTitle(gcloudAccessToken, inputs).map { title =>
+            gcpConnector.callGenerateTitle(gcloudAccessToken, inputs, request.projectId).map { title =>
               Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title)))
             }
           case Right(_) =>  Future.successful(Right(None))
