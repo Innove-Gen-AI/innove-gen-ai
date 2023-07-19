@@ -6,7 +6,7 @@
 package controllers
 
 import actions.RequestBodyAction.RequestBodyActionBuilder
-import models.{GCPFreeformRequest, GCPRequest, PredictionOutput, SentimentAnalysisResponse}
+import models.{GCPFreeformRequest, GCPRequest, PredictionOutput}
 import play.api.libs.json.Json
 import play.api.mvc._
 import services.GCPService

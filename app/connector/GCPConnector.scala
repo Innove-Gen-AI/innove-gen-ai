@@ -21,12 +21,12 @@ class GCPConnector @Inject()(httpClient: WSClient)
 
   private def sanitiseOutput(output: String): String = output.replaceAll("\n", "").replaceAll("\\*", "")
 
-  def callGCPAPI(gcloudAccessToken: String,
-                              gcpPredictRequest: GCPPredictRequest,
-                              model: String = "text-bison@001"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  private def callGCPAPI(gcloudAccessToken: String,
+                         gcpPredictRequest: GCPPredictRequest,
+                         projectId: String,
+                         model: String = "text-bison@001"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
-    val PROJECT_ID = "gen-innove"
     val MODEL_ID = model
 
     val headers = Seq(
@@ -34,7 +34,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
       "Authorization" -> s"$gcloudAccessToken",
     )
 
-    val url = s"https://$API_ENDPOINT/v1/projects/$PROJECT_ID/locations/us-central1/publishers/google/models/$MODEL_ID:predict"
+    val url = s"https://$API_ENDPOINT/v1/projects/$projectId/locations/us-central1/publishers/google/models/$MODEL_ID:predict"
     val body = Json.toJson(gcpPredictRequest)
 
     val bytes: Long = body.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name).length
@@ -69,7 +69,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
 
   def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
 
-  def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
     logger.info("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
 
     val sentimentOutputLength = 5
@@ -88,10 +88,10 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request, projectId)
   }
 
-  def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
     logger.info("[GCPConnector][callSummariseInputs] Calling summarise API")
 
     val request = GCPPredictRequest(
@@ -108,10 +108,10 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request, projectId)
   }
 
-  def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
     logger.info("[GCPConnector][callGetKeywords] Calling keywords API")
 
     val request = GCPPredictRequest(
@@ -128,10 +128,10 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request, projectId)
   }
 
-  def callFreeform(gcloudAccessToken: String, inputs: Seq[String], prompt: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callFreeform(gcloudAccessToken: String, inputs: Seq[String], prompt: String, projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
     logger.info(s"[GCPConnector][callFreeform] Calling free form API. Prompt: $prompt")
 
     val request = GCPPredictRequest(
@@ -151,10 +151,10 @@ class GCPConnector @Inject()(httpClient: WSClient)
       )
     )
 
-    callGCPAPI(gcloudAccessToken, request)
+    callGCPAPI(gcloudAccessToken, request, projectId)
   }
 
-  def callGenerateTitle(gcloudAccessToken: String, inputs: Seq[String], parameters: Option[Parameters] = None): Future[String] = {
+  def callGenerateTitle(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[String] = {
     logger.info(s"[GCPConnector][callFreeform] Calling title generation API.")
 
     val request = GCPPredictRequest(
@@ -174,7 +174,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
       )
     )
 
-    callGCPAPI(gcloudAccessToken, request).map {
+    callGCPAPI(gcloudAccessToken, request, projectId).map {
       case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty => predictions.head.content
       case _ => "Overall sentiment"
     }
