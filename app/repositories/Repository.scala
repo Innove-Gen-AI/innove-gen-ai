@@ -1,3 +1,8 @@
+/*
+ * Copyright 2023 Innové Gen AI
+ *
+ */
+
 package repositories
 
 import org.bson.codecs.configuration.CodecRegistry
