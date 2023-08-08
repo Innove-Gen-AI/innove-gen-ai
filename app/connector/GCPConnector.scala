@@ -36,7 +36,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
   private def callGCPAPI(gcloudAccessToken: String,
                          gcpPredictRequest: GCPPredictRequest,
                          projectId: String,
-                         model: String = "text-bison@001"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+                         model: String = "text-bison"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
     val MODEL_ID = model
