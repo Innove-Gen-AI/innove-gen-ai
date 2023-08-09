@@ -5,6 +5,7 @@
 
 package actions
 
+import play.api.Logging
 import play.api.libs.json.Reads
 import play.api.mvc.Results.BadRequest
 import play.api.mvc._
@@ -13,7 +14,7 @@ import scala.concurrent.ExecutionContext
 
 object RequestBodyAction extends RequestBodyActionImplicits
 
-trait RequestBodyActionImplicits {
+trait RequestBodyActionImplicits extends Logging {
 
   implicit class RequestBodyActionBuilder[Body](actionBuilder: ActionBuilder[Request, Body])(implicit cc: ControllerComponents) {
 

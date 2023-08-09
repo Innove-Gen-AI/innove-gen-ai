@@ -19,7 +19,7 @@ package models
 import play.api.libs.json.{Json, Reads, Writes}
 
 case class GCPFreeformRequest(product_id: String,
-                              projectId: String,
+                              projectId: String = "gen-innove",
                               parameters: Option[Parameters] = None,
                               datasetSize: Option[Int] = None,
                               filters: Seq[String] = Seq.empty,

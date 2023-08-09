@@ -15,4 +15,7 @@ class AppConfig @Inject()(config: Configuration) {
   val productsFilepath: String = config.get[String]("dataset.products.filepath")
   val reviewsFilepath: String = config.get[String]("dataset.reviews.filepath")
   val imagesFilepath: String = config.get[String]("dataset.images.filepath")
+
+  val reviewBatching: Boolean = config.get[Boolean]("reviewBatching")
+
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 HM Revenue & Customs
+ * Copyright 2020 Innové Gen AI
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,10 @@
 
 package models
 
-import play.api.libs.json.{Json, Reads, Writes}
+import play.api.libs.json.{Json, OFormat}
 
-case class GCPRequest(product_id: String,
-                      projectId: String = "gen-innove",
-                      parameters: Option[Parameters] = None,
-                      datasetSize: Option[Int] = None,
-                      filters: Seq[String] = Seq.empty,
-                     )
+case class GCPBaseRequest(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters], prompt: Option[String])
 
-object GCPRequest {
-  implicit val reads: Reads[GCPRequest] = Json.using[Json.WithDefaultValues].reads[GCPRequest]
-  implicit val writes: Writes[GCPRequest] = Json.writes[GCPRequest]
+object GCPBaseRequest {
+  implicit val formats: OFormat[GCPBaseRequest] = Json.format[GCPBaseRequest]
 }
