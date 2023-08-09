@@ -17,7 +17,7 @@
 
 package services
 
-import models.dataset.{PrimaryProductInfo, ProductInfo, ProductReview}
+import models.dataset.{PrimaryProductInfo, ProductInfo}
 import play.api.Logging
 import repositories.{ProductInfoRepository, ProductReviewRepository}
 
@@ -49,7 +49,7 @@ class ProductService @Inject()(productInfoRepository: ProductInfoRepository,
     }
   }
 
-  def getProductReviews(productId: String, filters: Seq[String]): Future[Seq[ProductReview]] = {
+  def getProductReviews(productId: String, filters: Seq[String], method: String): Future[Seq[String]] = {
 
     val positive = filters.contains("positive")
     val negative = filters.contains("negative")
@@ -64,21 +64,11 @@ class ProductService @Inject()(productInfoRepository: ProductInfoRepository,
 
     val recentFilter: Boolean = filters.contains("recent")
 
-    productInfoRepository.getProduct(productId).flatMap {
-      case Some(product) =>
-        logger.info(s"[ProductService][getProductReviews] Product found: $productId, searching for reviews with filters: $filters")
-        productReviewsRepository.getProductReviews(product.product_id, positiveFilter, recentFilter).map {
-          reviews =>
-            logger.info(s"[ProductService][getProductReviews] Reviews found for product id: $productId, ${reviews.length}")
-            if(recentFilter){
-              reviews
-            } else {
-              scala.util.Random.shuffle(reviews)
-            }
-        }
-      case None =>
-        logger.info(s"[ProductService][getProductReviews] Product not found: $productId")
-        Future.successful(Seq.empty)
+    productReviewsRepository.getProductReviews(productId, positiveFilter, recentFilter).map { _reviews =>
+      val reviews = _reviews.map(_.review_text)
+
+      logger.info(s"[ProductService][getProductReviews][$method] Reviews found for product id: $productId, Total reviews: ${reviews.length}")
+      if (recentFilter) reviews else scala.util.Random.shuffle(reviews)
     }
   }
 }

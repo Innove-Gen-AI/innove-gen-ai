@@ -17,10 +17,10 @@
 
 package connector
 
-import models.{GCPErrorResponse, GCPPredictRequest, Instance, Parameters, SentimentAnalysisResponse}
+import models._
 import play.api.Logging
 import play.api.http.Status.{INTERNAL_SERVER_ERROR, OK}
-import play.api.libs.json.{Json, Reads}
+import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 import play.api.libs.ws.ahc.AhcWSResponse
 
@@ -36,6 +36,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
   private def callGCPAPI(gcloudAccessToken: String,
                          gcpPredictRequest: GCPPredictRequest,
                          projectId: String,
+                         method: String,
                          model: String = "text-bison@001"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
@@ -51,7 +52,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
 
     val bytes: Long = body.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name).length
 
-    logger.info(s"[GCPConnector][callGCPAPI] Request Content-length $bytes")
+    logger.info(s"[GCPConnector][$method] Request Content-length $bytes")
 
     Try {
       httpClient.url(url).withHttpHeaders(headers: _*).post(body).map {
@@ -60,20 +61,20 @@ class GCPConnector @Inject()(httpClient: WSClient)
             case OK =>
               Json.parse(underlying.body).asOpt[SentimentAnalysisResponse] match {
                 case Some(value) =>
-                  logger.info("[GCPConnector] Received success response from API.")
+                  logger.info(s"[GCPConnector][$method] Received success response from API.")
                   Right(value.copy(predictions = value.predictions.map(prediction => prediction.copy(content = sanitiseOutput(prediction.content)))))
                 case None =>
-                  logger.error(s"[GCPConnector] Error. Could not map response: ${underlying.body}")
+                  logger.error(s"[GCPConnector][[$method]] Error. Could not map response: ${underlying.body}")
                   Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, s"Error. Could not map response: ${underlying.body}"))
               }
             case status =>
-              logger.error(s"[GCPConnector] Error response. $status ${underlying.body}")
+              logger.error(s"[GCPConnector][$method] Error response. $status ${underlying.body}")
               Left(GCPErrorResponse(status = status, response = underlying.body))
           }
       }
     }.toEither match {
       case Left(exception) =>
-        logger.error(s"[GCPConnector] Exception. ${exception.getMessage}")
+        logger.error(s"[GCPConnector][$method] Exception. ${exception.getMessage}")
         Future.successful(Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, exception.getMessage)))
       case Right(response) => response
     }
@@ -81,7 +82,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
 
   def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
 
-  def callSentimentAnalysis(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callSentimentAnalysis(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
     logger.info("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
 
     val sentimentOutputLength = 5
@@ -89,18 +90,22 @@ class GCPConnector @Inject()(httpClient: WSClient)
     val request = GCPPredictRequest(
       Seq(
         Instance(
-          s"inputs: [${indexedInputs(inputs)}] Classify the sentiment of the inputs: Options: ['positive', 'neutral', 'negative'] Output Notes: output sentiments as an array of strings"
+          s"inputs: [${indexedInputs(baseRequest.inputs)}] Classify the sentiment of the inputs: Options: ['positive', 'neutral', 'negative'] Output Notes: output sentiments as an array of strings"
         )
       ),
-      parameters.getOrElse(Parameters(
+      baseRequest.parameters.getOrElse(Parameters(
         temperature = 0.2,
-        maxOutputTokens = 1 + inputs.length * sentimentOutputLength,
+        maxOutputTokens = 1 + baseRequest.inputs.length * sentimentOutputLength,
         topP = 0.8,
         topK = 1
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId)
+    callGCPAPI(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callSentimentAnalysis").map {
+      response =>
+        logger.info(s"[GCPConnector][callSentimentAnalysis] ${response}")
+        response
+    }
   }
 
   def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
@@ -120,19 +125,19 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId)
+    callGCPAPI(gcloudAccessToken, request, projectId, "callSummariseInputs")
   }
 
-  def callGetKeywords(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  def callGetKeywords(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
     logger.info("[GCPConnector][callGetKeywords] Calling keywords API")
 
     val request = GCPPredictRequest(
       Seq(
         Instance(
-          s"inputs: [${indexedInputs(inputs)}] Generate 9 or less meaningful keywords or tags that are common themes of the inputs: Keywords: Output Notes: do not include break lines such as '\n', output keywords as an array of strings"
+          s"inputs: [${indexedInputs(baseRequest.inputs)}] Generate 9 or less meaningful keywords or tags that are common themes of the inputs: Keywords: Output Notes: do not include break lines such as '\n', output keywords as an array of strings"
         )
       ),
-      parameters.getOrElse(Parameters(
+      baseRequest.parameters.getOrElse(Parameters(
         temperature = 0.2,
         maxOutputTokens = 80,
         topP = 0.9,
@@ -140,20 +145,19 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId)
+    callGCPAPI(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callGetKeywords")
   }
 
-  def callFreeform(gcloudAccessToken: String, inputs: Seq[String], prompt: String, projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.info(s"[GCPConnector][callFreeform] Calling free form API. Prompt: $prompt")
+  def callFreeform(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+    logger.info(s"[GCPConnector][callFreeform] Calling free form API. Prompt: ${baseRequest.prompt.get}")
 
     val request = GCPPredictRequest(
       Seq(
         Instance(
-          s"inputs: [${indexedInputs(inputs)}] $prompt"
-
+          s"inputs: [${indexedInputs(baseRequest.inputs)}] ${baseRequest.prompt.get}"
         )
       ),
-      parameters.getOrElse(
+      baseRequest.parameters.getOrElse(
         Parameters(
           temperature = 0.2,
           maxOutputTokens = 600,
@@ -163,11 +167,11 @@ class GCPConnector @Inject()(httpClient: WSClient)
       )
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId)
+    callGCPAPI(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callFreeform")
   }
 
   def callGenerateTitle(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[String] = {
-    logger.info(s"[GCPConnector][callFreeform] Calling title generation API.")
+    logger.info(s"[GCPConnector][callGenerateTitle] Calling title generation API.")
 
     val request = GCPPredictRequest(
       Seq(
@@ -186,7 +190,7 @@ class GCPConnector @Inject()(httpClient: WSClient)
       )
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId).map {
+    callGCPAPI(gcloudAccessToken, request, projectId, "callGenerateTitle").map {
       case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty => predictions.head.content
       case _ => "Overall sentiment"
     }

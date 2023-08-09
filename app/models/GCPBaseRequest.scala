@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Innové Gen AI
+ * Copyright 2020 Innové Gen AI
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,22 +12,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
-package config
+package models
 
-import play.api.Configuration
+import play.api.libs.json.{Json, OFormat}
 
-import javax.inject.{Inject, Singleton}
+case class GCPBaseRequest(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters], prompt: Option[String])
 
-@Singleton
-class AppConfig @Inject()(config: Configuration) {
-
-  val productsFilepath: String = config.get[String]("dataset.products.filepath")
-  val reviewsFilepath: String = config.get[String]("dataset.reviews.filepath")
-  val imagesFilepath: String = config.get[String]("dataset.images.filepath")
-
-  val reviewBatching: Boolean = config.get[Boolean]("reviewBatching")
-
+object GCPBaseRequest {
+  implicit val formats: OFormat[GCPBaseRequest] = Json.format[GCPBaseRequest]
 }

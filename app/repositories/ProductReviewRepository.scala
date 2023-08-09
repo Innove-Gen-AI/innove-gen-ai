@@ -47,8 +47,8 @@ class ProductReviewRepository @Inject ()(implicit ec: ExecutionContext) extends 
 
   private def lookupQuery(productId: String): Bson = equal("product_id", productId)
 
-  private def negativeQuery: Bson = BsonDocument("rating" -> BsonDocument("$lte" -> 2))
-  private def positiveQuery: Bson = BsonDocument("rating" -> BsonDocument("$gte" -> 4))
+  private def negativeQuery: Bson = BsonDocument("rating" -> BsonDocument("$lte" -> 3))
+  private def positiveQuery: Bson = BsonDocument("rating" -> BsonDocument("$gte" -> 3))
   private def recentQuery: Bson = BsonDocument("submission_time" -> -1)
 
   def getProductReviews(productId: String, positiveFilter: Option[Boolean], recentFilter: Boolean): Future[Seq[ProductReview]] = {
