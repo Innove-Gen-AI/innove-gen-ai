@@ -24,7 +24,11 @@ case class GCPFreeformRequest(product_id: String,
                               parameters: Option[Parameters] = None,
                               datasetSize: Option[Int] = None,
                               filters: Seq[String] = Seq.empty,
-                              prompt: String)
+                              prompt: String){
+  def toGCPRequest: GCPRequest = {
+    GCPRequest(product_id, projectId, parameters, datasetSize, filters)
+  }
+}
 
 object GCPFreeformRequest {
   implicit val reads: Reads[GCPFreeformRequest] = Json.using[Json.WithDefaultValues].reads[GCPFreeformRequest]

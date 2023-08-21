@@ -18,7 +18,7 @@
 package controllers
 
 import mocks.MockGCPService
-import models.{GCPRequest, Prediction, SentimentAnalysisResponse}
+import models.{GCPRequest, Prediction, PredictionOutput, SentimentAnalysisResponse}
 import org.scalatestplus.play._
 import org.scalatestplus.play.guice._
 import play.api.test._
@@ -33,11 +33,9 @@ class GCPControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting 
 
       mockCallSentimentAnalysis(
         request,
-        Right(SentimentAnalysisResponse(
-          Seq(
-            Prediction("positive")
-          )
-        )))
+        Right(Some(PredictionOutput(
+          content = "positive"
+        ))))
 
       def fakeRequest(body: GCPRequest): FakeRequest[GCPRequest] = FakeRequest("POST", "/").withBody(body)
 

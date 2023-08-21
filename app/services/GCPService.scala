@@ -61,7 +61,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
       } else {
         Future.successful(None)
       }
-    }).map(_.flatten.toSeq).map { responses =>
+    }).map(_.flatten.toSeq).flatMap { responses =>
 
       val result = responses.filter(response => response.isRight && response.exists(_.isDefined))
       val duration = (System.nanoTime - t1) / 1e9d
@@ -69,9 +69,21 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
       logger.info(s"[GCPService][batchHandling][$method] Batch handling duration: $duration. Success responses: ${responses.map(_.isRight).size} from ${responses.size} requests.")
 
       if (result.nonEmpty) {
-        Right(Some(toSinglePrediction(result.flatMap(_.toSeq).map(_.get))))
+        Future.successful(Right(Some(toSinglePrediction(result.flatMap(_.toSeq).map(_.get)))))
       } else {
-        responses.head
+        //final backup if blocked
+        logger.info(s"[GCPService][batchHandling][$method] Attempting final backup call")
+        gcpFunction(baseRequest.copy(inputs = baseRequest.inputs.take(5))).map {
+          case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty && predictions.head.content.nonEmpty =>
+            logger.info(s"[GCPService][batchHandling][$method] Final backup call successful")
+            Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes)))
+          case Right(_) =>
+            logger.info(s"[GCPService][batchHandling][$method] Final backup call returned no content")
+            Right(None)
+          case Left(error) =>
+            logger.info(s"[GCPService][batchHandling][$method] Final backup call failed. Error: $error")
+            Left(error)
+        }
       }
     }
   }
@@ -127,7 +139,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
 
         val title: Future[String] = {
           val t1 = System.nanoTime()
-          gcpConnector.callGenerateTitle(gcloudAccessToken, inputs.take(11), request.projectId).map { titleResult =>
+          gcpConnector.callGenerateTitle(gcloudAccessToken, scala.util.Random.shuffle(inputs).take(20), request.projectId).map { titleResult =>
             val duration = (System.nanoTime - t1) / 1e9d
             logger.info(s"[GCPService][$method][callGenerateTitle] callGenerateTitle duration: $duration")
             titleResult
@@ -158,6 +170,9 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
               val finalTimeNow = System.nanoTime
               val finalDuration = (finalTimeNow - t1) / 1e9d
               logger.info(s"[GCPService][$method] Non batched review duration: $finalDuration for ${inputs.size} reviews")
+              if(finalResult.isLeft){
+                logger.error(s"[GCPService][$method] Error Response - ${finalResult.left}")
+              }
               finalResult
           }
         }

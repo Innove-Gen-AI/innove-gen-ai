@@ -17,30 +17,34 @@
 
 package connector
 
+import com.google.cloud.aiplatform.v1beta1._
+import com.google.protobuf.Value
+import com.google.protobuf.util.JsonFormat
 import models._
-import play.api.Logging
+import org.threeten.bp.Duration
 import play.api.http.Status.{INTERNAL_SERVER_ERROR, OK}
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 import play.api.libs.ws.ahc.AhcWSResponse
+import utils.FutureHelper
+import utils.ResponseHandler.{responseHandling, sanitiseOutput}
 
+import java.util
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
+import scala.jdk.FutureConverters._
 import scala.util.Try
 
-class GCPConnector @Inject()(httpClient: WSClient)
-                            (implicit ec: ExecutionContext) extends Logging {
+class GCPConnector @Inject()(client: GCPClient,
+                             httpClient: WSClient)(implicit ec: ExecutionContext) extends FutureHelper {
 
-  private def sanitiseOutput(output: String): String = output.replaceAll("\n", "").replaceAll("\\*", "")
-
-  private def callGCPAPI(gcloudAccessToken: String,
-                         gcpPredictRequest: GCPPredictRequest,
-                         projectId: String,
-                         method: String,
-                         model: String = "text-bison@001"): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+  private def callGCPAPIHttp(gcloudAccessToken: String,
+                             gcpPredictRequest: GCPPredictRequest,
+                             projectId: String,
+                             method: String): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
     val API_ENDPOINT = "us-central1-aiplatform.googleapis.com"
-    val MODEL_ID = model
+    val MODEL_ID = "text-bison@001"
 
     val headers = Seq(
       "Content-Type" -> "application/json",
@@ -80,10 +84,50 @@ class GCPConnector @Inject()(httpClient: WSClient)
     }
   }
 
-  def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
+  def callGCPAPIClient(gcloudAccessToken: String,
+                       gcpPredictRequest: GCPPredictRequest,
+                       projectId: String,
+                       method: String): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
+
+    val MODEL_ID = "text-bison@001"
+    val location = s"us-central1"
+    val publisher = s"google"
+
+    Try {
+      val endpointName: EndpointName = EndpointName.ofProjectLocationPublisherModelName(projectId, location, publisher, MODEL_ID)
+
+      val instance = Json.toJson(gcpPredictRequest.instances.head).toString()
+      val parameters = Json.toJson(gcpPredictRequest.parameters).toString()
+
+      val instanceValue = Value.newBuilder
+      JsonFormat.parser.merge(instance, instanceValue)
+      val instances = new util.ArrayList[Value]
+      instances.add(instanceValue.build)
+
+      val parameterValueBuilder = Value.newBuilder
+      JsonFormat.parser.merge(parameters, parameterValueBuilder)
+      val parameterValue = parameterValueBuilder.build
+
+      val request: PredictRequest = PredictRequest.newBuilder().setEndpoint(endpointName.toString).addAllInstances(instances).setParameters(parameterValue).build()
+
+      import com.google.api.gax.grpc.GrpcCallContext
+
+      val context = GrpcCallContext.createDefault.withTimeout(Duration.ofSeconds(15))
+
+      client.predictionServiceClient.predictCallable.withDefaultCallContext(context).futureCall(request)
+
+    }.toEither match {
+      case Left(exception) =>
+        logger.error(s"[GCPConnector][callGCPAPIClient][$method] Exception. ${exception.toString}")
+        Future.successful(Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, exception.getMessage)))
+      case Right(futurePrediction) => toCompletableFuture(futurePrediction).asScala.map(responseHandling)
+    }
+  }
+
+  private def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
 
   def callSentimentAnalysis(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.info("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
+    logger.debug("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
 
     val sentimentOutputLength = 5
 
@@ -101,15 +145,15 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callSentimentAnalysis").map {
+    callGCPAPIClient(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callSentimentAnalysis").map {
       response =>
-        logger.info(s"[GCPConnector][callSentimentAnalysis] ${response}")
+        logger.debug(s"[GCPConnector][callSentimentAnalysis] ${response}")
         response
     }
   }
 
   def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.info("[GCPConnector][callSummariseInputs] Calling summarise API")
+    logger.debug("[GCPConnector][callSummariseInputs] Calling summarise API")
 
     val request = GCPPredictRequest(
       Seq(
@@ -125,11 +169,11 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId, "callSummariseInputs")
+    callGCPAPIClient(gcloudAccessToken, request, projectId, "callSummariseInputs")
   }
 
   def callGetKeywords(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.info("[GCPConnector][callGetKeywords] Calling keywords API")
+    logger.debug("[GCPConnector][callGetKeywords] Calling keywords API")
 
     val request = GCPPredictRequest(
       Seq(
@@ -145,11 +189,11 @@ class GCPConnector @Inject()(httpClient: WSClient)
       ))
     )
 
-    callGCPAPI(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callGetKeywords")
+    callGCPAPIClient(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callGetKeywords")
   }
 
   def callFreeform(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.info(s"[GCPConnector][callFreeform] Calling free form API. Prompt: ${baseRequest.prompt.get}")
+    logger.debug(s"[GCPConnector][callFreeform] Calling free form API. Prompt: ${baseRequest.prompt.get}")
 
     val request = GCPPredictRequest(
       Seq(
@@ -167,33 +211,34 @@ class GCPConnector @Inject()(httpClient: WSClient)
       )
     )
 
-    callGCPAPI(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callFreeform")
+    callGCPAPIClient(baseRequest.gcloudAccessToken, request, baseRequest.projectId, "callFreeform")
   }
 
   def callGenerateTitle(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[String] = {
-    logger.info(s"[GCPConnector][callGenerateTitle] Calling title generation API.")
+    logger.debug(s"[GCPConnector][callGenerateTitle] Calling title generation API.")
 
     val request = GCPPredictRequest(
       Seq(
         Instance(
-          s"inputs: [${indexedInputs(inputs)}] Generate a catchy review title based on the sentiment of the inputs. In 8 word or less"
+          s"inputs: [${indexedInputs(inputs)}] Generate a catchy review title based on the sentiment of the inputs. In 9 word or less"
 
         )
       ),
       parameters.getOrElse(
         Parameters(
-          temperature = 0.2,
-          maxOutputTokens = 20,
+          temperature = 0.4,
+          maxOutputTokens = 23,
           topP = 0.95,
           topK = 40
         )
       )
     )
 
-    callGCPAPI(gcloudAccessToken, request, projectId, "callGenerateTitle").map {
-      case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty => predictions.head.content
+    callGCPAPIClient(gcloudAccessToken, request, projectId, "callGenerateTitle").map {
+      case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty && predictions.head.content.nonEmpty => predictions.head.content
       case _ => "Overall sentiment"
     }
   }
+
 }
 
