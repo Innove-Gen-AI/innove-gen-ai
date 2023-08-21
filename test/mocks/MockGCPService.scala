@@ -17,7 +17,7 @@
 
 package mocks
 
-import models.{GCPErrorResponse, GCPRequest, SentimentAnalysisResponse}
+import models.{GCPErrorResponse, GCPRequest, PredictionOutput, SentimentAnalysisResponse}
 import org.scalamock.handlers.CallHandler2
 import org.scalamock.scalatest.MockFactory
 import services.GCPService
@@ -28,7 +28,7 @@ trait MockGCPService extends MockFactory {
 
   protected val mockGCPService: GCPService  = mock[GCPService]
 
-  def mockCallSentimentAnalysis(request: GCPRequest, response: Either[GCPErrorResponse, SentimentAnalysisResponse]): CallHandler2[String, GCPRequest, Future[Either[GCPErrorResponse, SentimentAnalysisResponse]]] ={
+  def mockCallSentimentAnalysis(request: GCPRequest, response: Either[GCPErrorResponse, Option[PredictionOutput]]): CallHandler2[String, GCPRequest, Future[Either[GCPErrorResponse, Option[PredictionOutput]]]] ={
     (mockGCPService.callSentimentAnalysis(_: String, _: GCPRequest))
       .expects(*, request)
       .returning(Future.successful(response))

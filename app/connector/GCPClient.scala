@@ -15,17 +15,14 @@
  *
  */
 
-package config
+package connector
 
-import com.google.inject.AbstractModule
-import connector.GCPClient
-import utils.StartUpAction
+import com.google.cloud.aiplatform.v1beta1._
 
-class Module extends AbstractModule {
-
-  override def configure(): Unit = {
-    bind(classOf[AppConfig]).asEagerSingleton()
-    bind(classOf[StartUpAction]).asEagerSingleton()
-    bind(classOf[GCPClient]).toInstance(GCPClient)
-  }
+trait GCPClient {
+  private val API_ENDPOINT = "us-central1-aiplatform.googleapis.com:443"
+  private val predictionServiceSettings: PredictionServiceSettings = PredictionServiceSettings.newBuilder.setEndpoint(API_ENDPOINT).build
+  val predictionServiceClient: PredictionServiceClient = PredictionServiceClient.create(predictionServiceSettings)
 }
+
+object GCPClient extends GCPClient

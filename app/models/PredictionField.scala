@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Innové Gen AI
+ * Copyright 2020 Innové Gen AI
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,20 +12,21 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
-package config
+package models
 
-import com.google.inject.AbstractModule
-import connector.GCPClient
-import utils.StartUpAction
+import play.api.libs.json.{Json, OFormat}
 
-class Module extends AbstractModule {
+case class PredictionFieldValue(bool_value: Option[Boolean],
+                                string_value: Option[String])
 
-  override def configure(): Unit = {
-    bind(classOf[AppConfig]).asEagerSingleton()
-    bind(classOf[StartUpAction]).asEagerSingleton()
-    bind(classOf[GCPClient]).toInstance(GCPClient)
-  }
+object PredictionFieldValue {
+  implicit val formats: OFormat[PredictionFieldValue] = Json.format[PredictionFieldValue]
+}
+
+case class PredictionField(key: String, value: PredictionFieldValue)
+
+object PredictionField {
+  implicit val formats: OFormat[PredictionField] = Json.format[PredictionField]
 }
