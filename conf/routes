@@ -13,3 +13,4 @@ POST     /freeform                   controllers.GCPController.callFreeform()
 GET      /products                   controllers.ProductsController.getProducts
 GET      /product/:productId         controllers.ProductsController.getProduct(productId: String)
 
+GET     /                            controllers.ProductsController.index

@@ -28,6 +28,10 @@ import scala.concurrent.ExecutionContext
 class ProductsController @Inject()(productService: ProductService)
                                   (implicit val controllerComponents: ControllerComponents, ec: ExecutionContext) extends BaseController {
 
+  def index: Action[AnyContent] = Action { implicit request =>
+    NoContent
+  }
+
   def getProducts: Action[AnyContent] = Action.async { implicit request =>
     productService.getProducts.map { products =>
       if(products.nonEmpty) Ok(Json.toJson(products)) else NoContent
