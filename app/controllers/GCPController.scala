@@ -88,7 +88,7 @@ class GCPController @Inject()(gcpService: GCPService)
     }
   }
 
-  val rateLimiter: RateLimiter = RateLimiter.create(10)
+  val rateLimiter: RateLimiter = RateLimiter.create(20)
 
   private lazy val errorBackupDefaultSentiment: PredictionOutput = PredictionOutput(
     content = "['neutral', 'neutral', 'neutral', 'neutral', 'negative', 'positive', 'positive']", safetyAttributes = Some(SafetyAttributes(
