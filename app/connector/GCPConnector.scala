@@ -17,12 +17,14 @@
 
 package connector
 
+import com.google.api.gax.rpc.ResourceExhaustedException
 import com.google.cloud.aiplatform.v1beta1._
 import com.google.protobuf.Value
 import com.google.protobuf.util.JsonFormat
+import io.grpc.StatusRuntimeException
 import models._
 import org.threeten.bp.Duration
-import play.api.http.Status.{INTERNAL_SERVER_ERROR, OK}
+import play.api.http.Status.{INTERNAL_SERVER_ERROR, NOT_ACCEPTABLE, OK}
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 import play.api.libs.ws.ahc.AhcWSResponse
@@ -89,45 +91,56 @@ class GCPConnector @Inject()(client: GCPClient,
                        projectId: String,
                        method: String): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
 
+    implicit val _method: String = method
+
     val MODEL_ID = "text-bison@001"
     val location = s"us-central1"
     val publisher = s"google"
 
-    Try {
-      val endpointName: EndpointName = EndpointName.ofProjectLocationPublisherModelName(projectId, location, publisher, MODEL_ID)
+    try {
+      Try {
+        val endpointName: EndpointName = EndpointName.ofProjectLocationPublisherModelName(projectId, location, publisher, MODEL_ID)
 
-      val instance = Json.toJson(gcpPredictRequest.instances.head).toString()
-      val parameters = Json.toJson(gcpPredictRequest.parameters).toString()
+        val instance = Json.toJson(gcpPredictRequest.instances.head).toString()
+        val parameters = Json.toJson(gcpPredictRequest.parameters).toString()
 
-      val instanceValue = Value.newBuilder
-      JsonFormat.parser.merge(instance, instanceValue)
-      val instances = new util.ArrayList[Value]
-      instances.add(instanceValue.build)
+        val instanceValue = Value.newBuilder
+        JsonFormat.parser.merge(instance, instanceValue)
+        val instances = new util.ArrayList[Value]
+        instances.add(instanceValue.build)
 
-      val parameterValueBuilder = Value.newBuilder
-      JsonFormat.parser.merge(parameters, parameterValueBuilder)
-      val parameterValue = parameterValueBuilder.build
+        val parameterValueBuilder = Value.newBuilder
+        JsonFormat.parser.merge(parameters, parameterValueBuilder)
+        val parameterValue = parameterValueBuilder.build
 
-      val request: PredictRequest = PredictRequest.newBuilder().setEndpoint(endpointName.toString).addAllInstances(instances).setParameters(parameterValue).build()
+        val request: PredictRequest = PredictRequest.newBuilder().setEndpoint(endpointName.toString).addAllInstances(instances).setParameters(parameterValue).build()
 
-      import com.google.api.gax.grpc.GrpcCallContext
+        import com.google.api.gax.grpc.GrpcCallContext
 
-      val context = GrpcCallContext.createDefault.withTimeout(Duration.ofSeconds(15))
+        val context = GrpcCallContext.createDefault.withTimeout(Duration.ofSeconds(15))
 
-      client.predictionServiceClient.predictCallable.withDefaultCallContext(context).futureCall(request)
+        client.predictionServiceClient.predictCallable.withDefaultCallContext(context).futureCall(request)
 
-    }.toEither match {
-      case Left(exception) =>
-        logger.error(s"[GCPConnector][callGCPAPIClient][$method] Exception. ${exception.toString}")
+      }.toEither match {
+        case Left(exception) =>
+          logger.error(s"[GCPConnector][callGCPAPIClient][$method] Exception. ${exception.toString}")
+          Future.successful(Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, exception.getMessage)))
+        case Right(futurePrediction) => toCompletableFuture(futurePrediction).asScala.map(responseHandling)
+      }
+    } catch {
+      case exception: ResourceExhaustedException =>
+        logger.error(s"[GCPConnector][callGCPAPIClient][$method] Rete limit Exception. ${exception.toString}")
+        Future.successful(Left(GCPErrorResponse(NOT_ACCEPTABLE, exception.getMessage)))
+      case exception =>
+        logger.error(s"[GCPConnector][callGCPAPIClient][$method] Unexpected Exception. ${exception.toString}")
         Future.successful(Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, exception.getMessage)))
-      case Right(futurePrediction) => toCompletableFuture(futurePrediction).asScala.map(responseHandling)
     }
   }
 
   private def indexedInputs(inputs: Seq[String]): String = inputs.zipWithIndex.map(input => s"{Index ${input._2} :: ${input._1}}").mkString(", ")
 
   def callSentimentAnalysis(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.debug("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
+    logger. debug ("[GCPConnector][callSentimentAnalysis] Calling sentiment analysis API")
 
     val sentimentOutputLength = 5
 
@@ -153,7 +166,7 @@ class GCPConnector @Inject()(client: GCPClient,
   }
 
   def callSummariseInputs(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.debug("[GCPConnector][callSummariseInputs] Calling summarise API")
+    logger. debug ("[GCPConnector][callSummariseInputs] Calling summarise API")
 
     val request = GCPPredictRequest(
       Seq(
@@ -173,7 +186,7 @@ class GCPConnector @Inject()(client: GCPClient,
   }
 
   def callGetKeywords(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.debug("[GCPConnector][callGetKeywords] Calling keywords API")
+    logger. debug ("[GCPConnector][callGetKeywords] Calling keywords API")
 
     val request = GCPPredictRequest(
       Seq(
@@ -193,7 +206,7 @@ class GCPConnector @Inject()(client: GCPClient,
   }
 
   def callFreeform(baseRequest: GCPBaseRequest): Future[Either[GCPErrorResponse, SentimentAnalysisResponse]] = {
-    logger.debug(s"[GCPConnector][callFreeform] Calling free form API. Prompt: ${baseRequest.prompt.get}")
+    logger. debug (s"[GCPConnector][callFreeform] Calling free form API. Prompt: ${baseRequest.prompt.get}")
 
     val request = GCPPredictRequest(
       Seq(
@@ -215,7 +228,7 @@ class GCPConnector @Inject()(client: GCPClient,
   }
 
   def callGenerateTitle(gcloudAccessToken: String, inputs: Seq[String], projectId: String, parameters: Option[Parameters] = None): Future[String] = {
-    logger.debug(s"[GCPConnector][callGenerateTitle] Calling title generation API.")
+    logger. debug (s"[GCPConnector][callGenerateTitle] Calling title generation API.")
 
     val request = GCPPredictRequest(
       Seq(
