@@ -21,7 +21,7 @@ import com.fasterxml.jackson.core.JsonParseException
 import com.google.cloud.aiplatform.v1beta1._
 import models._
 import play.api.Logging
-import play.api.http.Status.{BAD_REQUEST, INTERNAL_SERVER_ERROR}
+import play.api.http.Status.{BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_ACCEPTABLE, NO_CONTENT}
 import play.api.libs.json.Json
 
 import scala.annotation.tailrec
@@ -30,7 +30,7 @@ object ResponseHandler extends Logging {
 
   def sanitiseOutput(output: String): String = output.replaceAll("\n", "").replaceAll("\\*", "")
 
-  def responseHandling(response: PredictResponse): Either[GCPErrorResponse, SentimentAnalysisResponse] = {
+  def responseHandling(response: PredictResponse)(implicit method: String): Either[GCPErrorResponse, SentimentAnalysisResponse] = {
     val prediction = response.getPredictionsList.get(0)
 
     val values = Seq(
@@ -103,27 +103,32 @@ object ResponseHandler extends Logging {
       case Some(content) if content.nonEmpty && !blockedValue =>
         val contentJson = Json.parse(sanitizedFieldContent(content, "content"))
 
-        contentJson.validate[PredictionField].asEither.left.map(_ => GCPErrorResponse(BAD_REQUEST, "Could not map content to PredictionField")).map {
-          case PredictionField(_, PredictionFieldValue(_, Some(stringContent))) =>
-
+        contentJson.validate[PredictionField].asEither match {
+          case Right(PredictionField(_, PredictionFieldValue(_, Some(stringContent)))) if stringContent.nonEmpty =>
             val sanitisedContent = sanitiseOutput(stringContent)
 
-            logger.debug(s"[ResponseHandler][responseHandling] Sanitized API content. $sanitisedContent")
-            SentimentAnalysisResponse(
+            logger.debug(s"[ResponseHandler][responseHandling][$method] Sanitized API content. $sanitisedContent")
+            Right(SentimentAnalysisResponse(
               Seq(Prediction(
                 content = sanitisedContent, safetyAttributes = Some(SafetyAttributes(
                   Some(Seq.empty), blocked = Some(blockedValue), Some(Seq.empty)
                 ))
               ))
-            )
+            ))
+          case Left(_) =>
+            logger.error(s"[ResponseHandler][responseHandling][$method] INTERNAL_SERVER_ERROR Could not map content to PredictionField")
+            Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, s"[$method] Could not map content to PredictionField"))
+          case _ =>
+            logger.error(s"[ResponseHandler][responseHandling][$method] NO_CONTENT GCP Request did not return content. Response: $contentJson, Blocked: $blockedValue")
+            Left(GCPErrorResponse(NO_CONTENT, s"[$method] GCP Request did not return content."))
         }
       case _ =>
         if (blockedValue) {
-          logger.error(s"[ResponseHandler][responseHandling] GCP Request content was blocked")
-          Left(GCPErrorResponse(BAD_REQUEST, "GCP Request was blocked"))
+          logger.warn(s"[ResponseHandler][responseHandling][$method] NOT_ACCEPTABLE GCP Request content was blocked")
+          Left(GCPErrorResponse(NOT_ACCEPTABLE, s"[$method] GCP Request was blocked"))
         } else {
-          logger.info(s"[ResponseHandler][responseHandling] GCP Request did not return content")
-          Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, "GCP Request did not return content"))
+          logger.error(s"[ResponseHandler][responseHandling][$method] INTERNAL_SERVER_ERROR GCP Request did not return content. Response: ${response.toString}")
+          Left(GCPErrorResponse(INTERNAL_SERVER_ERROR, s"[$method] GCP Request did not return content."))
         }
     }
   }

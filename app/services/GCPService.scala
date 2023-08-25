@@ -19,7 +19,7 @@ package services
 
 import config.AppConfig
 import connector.GCPConnector
-import models.{GCPBaseRequest, GCPErrorResponse, GCPFreeformRequest, GCPRequest, PredictionOutput, SentimentAnalysisResponse}
+import models.{GCPBaseRequest, GCPErrorResponse, GCPFreeformRequest, GCPRequest, PredictionOutput, SafetyAttributes, SentimentAnalysisResponse}
 import play.api.Logging
 
 import javax.inject._
@@ -43,7 +43,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
                             gcpFunction: GCPBaseRequest => Future[Either[GCPErrorResponse, SentimentAnalysisResponse]],
                             toSinglePrediction: Seq[PredictionOutput] => PredictionOutput,
                             batchSize: Int = 20)
-                           (implicit method: String): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
+                           (implicit method: String): Future[Either[GCPErrorResponse, PredictionOutput]] = {
 
     val t1 = System.nanoTime()
 
@@ -54,34 +54,33 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
       if (batch.nonEmpty) {
         gcpFunction(baseRequest.copy(inputs = batch)).map {
           case Left(error) => Some(Left(error))
-          case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty && predictions.head.content.nonEmpty =>
-            Some(Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes))))
-          case Right(_) => Some(Right(None))
+          case Right(SentimentAnalysisResponse(predictions)) =>
+            Some(Right(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes)))
         }
       } else {
         Future.successful(None)
       }
     }).map(_.flatten.toSeq).flatMap { responses =>
 
-      val result = responses.filter(response => response.isRight && response.exists(_.isDefined))
+      val result = responses.filter(response => response.isRight)
       val duration = (System.nanoTime - t1) / 1e9d
 
-      logger.info(s"[GCPService][batchHandling][$method] Batch handling duration: $duration. Success responses: ${responses.map(_.isRight).size} from ${responses.size} requests.")
+      logger.info(s"[GCPService][batchHandling][$method] Batch handling duration: $duration. Success responses: ${responses.count(_.isRight)} from ${responses.size} requests.")
 
       if (result.nonEmpty) {
-        Future.successful(Right(Some(toSinglePrediction(result.flatMap(_.toSeq).map(_.get)))))
+        Future.successful(Right(toSinglePrediction(result.flatMap(_.toSeq))))
       } else {
+
+        val finalBatch = scala.util.Random.shuffle(baseRequest.inputs).take(5)
+
         //final backup if blocked
-        logger.info(s"[GCPService][batchHandling][$method] Attempting final backup call")
-        gcpFunction(baseRequest.copy(inputs = baseRequest.inputs.take(5))).map {
-          case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty && predictions.head.content.nonEmpty =>
-            logger.info(s"[GCPService][batchHandling][$method] Final backup call successful")
-            Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes)))
-          case Right(_) =>
-            logger.info(s"[GCPService][batchHandling][$method] Final backup call returned no content")
-            Right(None)
+        logger.warn(s"[GCPService][batchHandling][$method] Attempting final backup call")
+        gcpFunction(baseRequest.copy(inputs = finalBatch)).map {
+          case Right(SentimentAnalysisResponse(predictions)) =>
+            logger.warn(s"[GCPService][batchHandling][$method] Final backup call successful")
+            Right(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes))
           case Left(error) =>
-            logger.info(s"[GCPService][batchHandling][$method] Final backup call failed. Error: $error")
+            logger.error(s"[GCPService][batchHandling][$method] Final backup call failed. Error: $error")
             Left(error)
         }
       }
@@ -101,7 +100,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
     PredictionOutput(content, safetyAttributes = batchOutput.head.safetyAttributes, title = batchOutput.head.title)
   }
 
-  def callSentimentAnalysis(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
+  def callSentimentAnalysis(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, PredictionOutput]] = {
     implicit val method: String = "callSentimentAnalysis"
     datasetInputs(request.product_id, request.datasetSize.getOrElse(30), request.filters).flatMap {
       inputs =>
@@ -109,7 +108,7 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
     }
   }
 
-  def callGetKeywords(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
+  def callGetKeywords(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, PredictionOutput]] = {
     implicit val method: String = "callGetKeywords"
     datasetInputs(request.product_id, request.datasetSize.getOrElse(50), request.filters).flatMap {
       inputs =>
@@ -117,22 +116,21 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
     }
   }
 
-  def callSummariseInputs(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
+  def callSummariseInputs(gcloudAccessToken: String, request: GCPRequest): Future[Either[GCPErrorResponse, PredictionOutput]] = {
     implicit val method: String = "callSummariseInputs"
     datasetInputs(request.product_id, request.datasetSize.getOrElse(100), request.filters).flatMap {
       inputs =>
         gcpConnector.callSummariseInputs(gcloudAccessToken, inputs, request.projectId, request.parameters).flatMap {
           case Left(error) => Future.successful(Left(error))
-          case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty =>
+          case Right(SentimentAnalysisResponse(predictions)) =>
             gcpConnector.callGenerateTitle(gcloudAccessToken, inputs, request.projectId).map { title =>
-              Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title)))
+              Right(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title))
             }
-          case Right(_) =>  Future.successful(Right(None))
         }
     }
   }
 
-  def callFreeform(gcloudAccessToken: String, request: GCPFreeformRequest): Future[Either[GCPErrorResponse, Option[PredictionOutput]]] = {
+  def callFreeform(gcloudAccessToken: String, request: GCPFreeformRequest): Future[Either[GCPErrorResponse, PredictionOutput]] = {
     implicit val method: String = "callFreeform"
     datasetInputs(request.product_id, request.datasetSize.getOrElse(100), request.filters).flatMap {
       inputs =>
@@ -146,35 +144,45 @@ class GCPService @Inject()(gcpConnector: GCPConnector,
           }
         }
 
-        if(appConfig.reviewBatching){
-          reviewBatchHandling(GCPBaseRequest(gcloudAccessToken, inputs, request.projectId, request.parameters, Some(request.prompt)), gcpConnector.callFreeform).flatMap {
-            case Left(error) => Future.successful(Left(error))
-            case Right(Some(prediction)) =>
-              title.map { title =>
-                Right(Some(PredictionOutput(prediction.content, prediction.safetyAttributes, title)))
-              }
-            case Right(_) =>  Future.successful(Right(None))
-          }
-        } else {
-          val t1 = System.nanoTime()
+        val t1 = System.nanoTime()
 
-          gcpConnector.callFreeform(GCPBaseRequest(gcloudAccessToken, inputs, request.projectId, request.parameters, Some(request.prompt))).flatMap {
-            case Left(error) => Future.successful(Left(error))
-            case Right(SentimentAnalysisResponse(predictions)) if predictions.nonEmpty =>
-              title.map { title =>
-                Right(Some(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title)))
+        gcpConnector.callFreeform(GCPBaseRequest(gcloudAccessToken, inputs, request.projectId, request.parameters, Some(request.prompt))).flatMap {
+          case Left(error) => Future.successful(Left(error))
+          case Right(SentimentAnalysisResponse(predictions)) =>
+            title.map { title =>
+              Right(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title))
+            }
+        }.flatMap {
+          finalResult =>
+            val finalTimeNow = System.nanoTime
+            val finalDuration = (finalTimeNow - t1) / 1e9d
+            logger.info(s"[GCPService][$method] Non batched review duration: $finalDuration for ${inputs.size} reviews")
+
+            def finalBackup(): Future[Either[GCPErrorResponse, PredictionOutput]] = {
+
+              val lastBatch = scala.util.Random.shuffle(inputs).take(12)
+
+              logger.warn(s"[GCPService][freeformHandling][$method] Attempting final backup call")
+              gcpConnector.callFreeform(GCPBaseRequest(gcloudAccessToken, lastBatch, request.projectId, request.parameters, Some(request.prompt))).flatMap {
+                case Right(SentimentAnalysisResponse(predictions)) =>
+                  logger.info(s"[GCPService][freeformHandling][$method] Final backup call successful")
+                  title.map{ title =>
+                    Right(PredictionOutput(predictions.head.content, predictions.head.safetyAttributes, title))
+                  }
+                case Left(error) =>
+                  logger.error(s"[GCPService][freeformHandling][$method] Final backup call failed. Resorting to local review. Error: $error")
+                  Future.successful(Right(PredictionOutput(lastBatch.head, safetyAttributes = Some(SafetyAttributes(
+                    Some(Seq.empty), blocked = Some(false), Some(Seq.empty)
+                  )))))
               }
-            case Right(_) =>  Future.successful(Right(None))
-          }.map {
-            finalResult =>
-              val finalTimeNow = System.nanoTime
-              val finalDuration = (finalTimeNow - t1) / 1e9d
-              logger.info(s"[GCPService][$method] Non batched review duration: $finalDuration for ${inputs.size} reviews")
-              if(finalResult.isLeft){
-                logger.error(s"[GCPService][$method] Error Response - ${finalResult.left}")
-              }
-              finalResult
-          }
+            }
+
+            finalResult match {
+              case Right(finalResult) => Future.successful(Right(finalResult))
+              case Left(error) =>
+                logger.error(s"[GCPService][$method] Error Response - ${error}")
+                finalBackup()
+            }
         }
     }
   }
